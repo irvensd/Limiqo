@@ -44,7 +44,7 @@ export type Goal = {
 };
 
 export type AppState = {
-  user: { name: string; quarantineDays: number };
+  user: { name: string; quarantineDays: number; onboarded: boolean };
   tasks: Task[];
   projects: Project[];
   ideas: Idea[];
@@ -66,7 +66,7 @@ function daysAgo(days: number) {
 
 export function createSeed(name = "Irvens"): AppState {
   return {
-    user: { name, quarantineDays: 14 },
+    user: { name, quarantineDays: 14, onboarded: false },
     areas: [...DEFAULT_AREAS],
     tasks: [
       {

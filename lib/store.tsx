@@ -13,7 +13,8 @@ import {
 import { uid } from "./helpers";
 import { withLinkedProgress } from "./progress";
 
-const STORAGE_KEY = "northstar.v1";
+const STORAGE_KEY = "limiqo.v1";
+const LEGACY_STORAGE_KEY = "northstar.v1";
 
 type Action =
   | { type: "hydrate"; payload: AppState }
@@ -44,6 +45,8 @@ type Action =
   | { type: "swap-today-task"; outId: string; inId?: string; goalId?: string }
   | { type: "set-review"; key: keyof AppState["review"] }
   | { type: "set-name"; name: string }
+  | { type: "complete-onboarding" }
+  | { type: "show-welcome" }
   | { type: "reset" };
 
 function reduce(state: AppState, action: Action): AppState {
@@ -66,6 +69,11 @@ function reduce(state: AppState, action: Action): AppState {
           incoming.areas && incoming.areas.length > 0
             ? incoming.areas
             : [...DEFAULT_AREAS],
+        user: {
+          ...createSeed().user,
+          ...incoming.user,
+          onboarded: incoming.user?.onboarded ?? true,
+        },
       };
     }
     case "toggle-task":
@@ -371,8 +379,14 @@ function reduce(state: AppState, action: Action): AppState {
       return { ...state, review: { ...state.review, [action.key]: !state.review[action.key] } };
     case "set-name":
       return { ...state, user: { ...state.user, name: action.name } };
-    case "reset":
-      return createSeed(state.user.name);
+    case "complete-onboarding":
+      return { ...state, user: { ...state.user, onboarded: true } };
+    case "show-welcome":
+      return { ...state, user: { ...state.user, onboarded: false } };
+    case "reset": {
+      const next = createSeed(state.user.name);
+      return { ...next, user: { ...next.user, onboarded: true } };
+    }
     default:
       return state;
   }
@@ -384,7 +398,11 @@ function reducer(state: AppState, action: Action): AppState {
   return withLinkedProgress(next);
 }
 
-const StoreContext = createContext<{ state: AppState; dispatch: Dispatch<Action> } | null>(null);
+const StoreContext = createContext<{
+  state: AppState;
+  dispatch: Dispatch<Action>;
+  ready: boolean;
+} | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, () => withLinkedProgress(createSeed()));
@@ -392,7 +410,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
-      .then((raw) => {
+      .then(async (raw) => {
+        if (!raw) {
+          raw = await AsyncStorage.getItem(LEGACY_STORAGE_KEY);
+        }
         if (raw) dispatch({ type: "hydrate", payload: JSON.parse(raw) as AppState });
       })
       .finally(() => setReady(true));
@@ -404,7 +425,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [ready, state]);
 
-  const value = useMemo(() => ({ state, dispatch }), [state]);
+  const value = useMemo(() => ({ state, dispatch, ready }), [state, ready]);
   return createElement(StoreContext.Provider, { value }, children);
 }
 

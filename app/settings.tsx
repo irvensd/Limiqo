@@ -5,9 +5,11 @@ import BackLink from "@/components/BackLink";
 import WeeklyReview from "@/components/WeeklyReview";
 import { Kicker, SectionLabel, Subtitle, Title } from "@/components/Type";
 import { colors, fonts } from "@/constants/theme";
+import { useRouter } from "expo-router";
 import { useStore } from "@/lib/store";
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const { state, dispatch } = useStore();
   const [name, setName] = useState(state.user.name);
 
@@ -47,7 +49,15 @@ export default function SettingsScreen() {
         <Text style={styles.blockNote}>
           Everything lives on your phone. No accounts. No feed. Capture an idea, keep the list small, and let the rest wait.
         </Text>
-        <Pressable onPress={() => dispatch({ type: "reset" })}>
+        <Pressable
+          onPress={() => {
+            dispatch({ type: "show-welcome" });
+            router.replace("/");
+          }}
+        >
+          <Text style={styles.reset}>Show welcome again</Text>
+        </Pressable>
+        <Pressable onPress={() => dispatch({ type: "reset" })} style={{ marginTop: 14 }}>
           <Text style={styles.reset}>Reset demo data</Text>
         </Pressable>
       </ScrollView>

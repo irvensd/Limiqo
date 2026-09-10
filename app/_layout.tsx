@@ -21,7 +21,7 @@ import { UIProvider, useUI } from "@/lib/ui";
 export { ErrorBoundary } from "expo-router";
 
 export const unstable_settings = {
-  initialRouteName: "(tabs)",
+  initialRouteName: "index",
 };
 
 SplashScreen.preventAutoHideAsync();
@@ -63,6 +63,7 @@ export default function RootLayout() {
           <ThemeProvider value={theme}>
             <StatusBar style="light" />
             <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+              <Stack.Screen name="index" />
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="project/[id]" />
               <Stack.Screen name="review" />

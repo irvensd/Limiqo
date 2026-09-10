@@ -8,7 +8,7 @@ export default function NotFoundScreen() {
       <Stack.Screen options={{ title: "Missing", headerShown: false }} />
       <View style={styles.container}>
         <Text style={styles.title}>This page is not on the map.</Text>
-        <Link href="/" style={styles.link}>
+        <Link href="/(tabs)/today" style={styles.link}>
           <Text style={styles.linkText}>Back to Today</Text>
         </Link>
       </View>

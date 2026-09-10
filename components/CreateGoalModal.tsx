@@ -33,7 +33,7 @@ export default function CreateGoalModal({ open, onClose }: { open: boolean; onCl
 
   return (
     <FormModal open={open} title="Hold the line" heading="Add a goal" onClose={onClose}>
-      <Text style={styles.label}>The north star</Text>
+      <Text style={styles.label}>The aim</Text>
       <TextInput
         value={title}
         onChangeText={setTitle}

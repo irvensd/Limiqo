@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "northstar",
-    "slug": "northstar",
+    "name": "Limiqo",
+    "slug": "limiqo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "northstar",
+    "scheme": "limiqo",
     "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true
