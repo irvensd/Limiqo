@@ -11,8 +11,9 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { useSegments } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, fonts } from "@/constants/theme";
+import { colors, floatingTab, fonts } from "@/constants/theme";
 
 export default function FormModal({
   open,
@@ -29,6 +30,7 @@ export default function FormModal({
 }) {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
+  const segments = useSegments();
   const [keyboard, setKeyboard] = useState(0);
 
   useEffect(() => {
@@ -50,8 +52,14 @@ export default function FormModal({
     };
   }, [open]);
 
-  const rest = keyboard > 0 ? 12 : Math.max(insets.bottom, 16);
-  const maxHeight = Math.max(240, height - keyboard - 20);
+  const onTabs = segments[0] === "(tabs)" && keyboard === 0;
+  const dock = keyboard > 0
+    ? keyboard
+    : onTabs
+      ? Math.max(insets.bottom, 12) + floatingTab.bottomGap + floatingTab.height + 8
+      : 0;
+  const rest = keyboard > 0 ? 12 : onTabs ? 20 : Math.max(insets.bottom, 16);
+  const maxHeight = Math.max(240, height - dock - 20);
 
   return (
     <Modal
@@ -61,13 +69,17 @@ export default function FormModal({
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <View style={styles.overlay}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View style={[styles.lift, { paddingBottom: keyboard }]}>
+      <View style={[styles.frame, { paddingBottom: dock }]}>
+        <View style={styles.overlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
           <View style={[styles.sheet, { maxHeight, paddingBottom: rest }]}>
-            <Text style={styles.kicker}>{title}</Text>
-            <Text style={styles.heading}>{heading}</Text>
+            <View style={styles.head}>
+              <Text style={styles.kicker}>{title}</Text>
+              <Text style={styles.heading}>{heading}</Text>
+            </View>
             <ScrollView
+              style={styles.body}
+              contentContainerStyle={styles.bodyContent}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
               showsVerticalScrollIndicator={false}
@@ -83,13 +95,13 @@ export default function FormModal({
 }
 
 const styles = StyleSheet.create({
+  frame: {
+    flex: 1,
+  },
   overlay: {
     flex: 1,
     justifyContent: "flex-end",
     backgroundColor: colors.overlay,
-  },
-  lift: {
-    width: "100%",
   },
   sheet: {
     backgroundColor: colors.popover,
@@ -100,9 +112,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 24,
   },
+  head: {
+    flexShrink: 0,
+  },
+  body: {
+    flexGrow: 0,
+    flexShrink: 1,
+  },
+  bodyContent: {
+    paddingTop: 4,
+  },
   kicker: {
     color: colors.mutedForeground,
     fontSize: 12,
+    lineHeight: 18,
     fontFamily: fonts.semibold,
     letterSpacing: 2.2,
     textTransform: "uppercase",
@@ -111,8 +134,12 @@ const styles = StyleSheet.create({
   heading: {
     color: colors.foreground,
     fontSize: 26,
+    lineHeight: 36,
     fontFamily: fonts.semibold,
     letterSpacing: -0.6,
     marginBottom: 20,
+    paddingTop: 4,
+    paddingLeft: 2,
+    paddingRight: 4,
   },
 });

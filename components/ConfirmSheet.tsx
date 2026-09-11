@@ -45,10 +45,10 @@ const styles = StyleSheet.create({
   body: {
     color: colors.mutedForeground,
     fontSize: 15,
-    lineHeight: 22,
+    lineHeight: 24,
     fontFamily: fonts.regular,
     marginBottom: 8,
-    marginTop: -8,
+    paddingTop: 4,
   },
   actions: {
     flexDirection: "row",

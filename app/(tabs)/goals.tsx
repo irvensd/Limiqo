@@ -313,7 +313,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
     fontFamily: fonts.regular,
-    marginTop: -8,
     marginBottom: 8,
   },
   swapOption: {
