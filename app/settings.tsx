@@ -1,8 +1,10 @@
 import { useRef, useState } from "react";
 import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useLocalSearchParams } from "expo-router";
 import BackLink from "@/components/BackLink";
 import { Wordmark } from "@/components/Brand";
+import CloudLine from "@/components/CloudLine";
 import ConfirmSheet from "@/components/ConfirmSheet";
 import WeeklyReview from "@/components/WeeklyReview";
 import { Kicker, SectionLabel, Subtitle, Title } from "@/components/Type";
@@ -10,12 +12,17 @@ import { colors, fonts } from "@/constants/theme";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useStore } from "@/lib/store";
+import { useUI } from "@/lib/ui";
 
 export default function SettingsScreen() {
   const { session, signOut } = useAuth();
   const { state, dispatch } = useStore();
+  const { say } = useUI();
+  const { from } = useLocalSearchParams<{ from?: string }>();
+  const backLabel = typeof from === "string" && from.trim() ? from : "Today";
   const [name, setName] = useState(state.user.name);
   const [clearOpen, setClearOpen] = useState(false);
+  const [needName, setNeedName] = useState(false);
   const nameRef = useRef<TextInput>(null);
   const email = session?.user.email ?? "";
 
@@ -23,10 +30,15 @@ export default function SettingsScreen() {
     const next = name.trim();
     nameRef.current?.blur();
     Keyboard.dismiss();
-    if (!next) return;
+    if (!next) {
+      setNeedName(true);
+      return;
+    }
+    setNeedName(false);
     setName(next);
     dispatch({ type: "set-name", name: next });
     supabase.auth.updateUser({ data: { name: next } });
+    say("Saved.");
   }
 
   return (
@@ -38,7 +50,7 @@ export default function SettingsScreen() {
         automaticallyAdjustKeyboardInsets
       >
         <View style={styles.top}>
-          <BackLink label="Today" style={styles.back} />
+          <BackLink label={backLabel} style={styles.back} />
           <Wordmark width={92} />
         </View>
         <Kicker>Quiet controls</Kicker>
@@ -58,13 +70,21 @@ export default function SettingsScreen() {
           </Pressable>
         </View>
 
+        <View style={styles.cloud}>
+          <SectionLabel>Cloud</SectionLabel>
+          <CloudLine always />
+        </View>
+
         <View style={styles.rule} />
         <Text style={styles.label}>What should we call you?</Text>
         <View style={styles.row}>
           <TextInput
             ref={nameRef}
             value={name}
-            onChangeText={setName}
+            onChangeText={(value) => {
+              setName(value);
+              setNeedName(false);
+            }}
             style={styles.input}
             placeholder="Your name"
             placeholderTextColor={colors.mutedForeground}
@@ -77,6 +97,7 @@ export default function SettingsScreen() {
             <Text style={styles.saveText}>Save</Text>
           </Pressable>
         </View>
+        {needName ? <Text style={styles.nameHint}>Name it first.</Text> : null}
 
         <View style={styles.reviewHead}>
           <SectionLabel>Weekly review</SectionLabel>
@@ -87,7 +108,7 @@ export default function SettingsScreen() {
         <View style={styles.rule} />
         <Text style={styles.blockTitle}>On this device</Text>
         <Text style={styles.blockNote}>
-          Lists still live on this phone. Signing out does not show them to anyone else.
+          Lists live on this phone. When the cloud is working, they also save to your account.
         </Text>
         <Pressable onPress={() => setClearOpen(true)}>
           <Text style={styles.reset}>Clear everything</Text>
@@ -104,6 +125,7 @@ export default function SettingsScreen() {
         onConfirm={() => {
           dispatch({ type: "reset" });
           setClearOpen(false);
+          say("Cleared.");
         }}
       />
     </SafeAreaView>
@@ -140,6 +162,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     fontSize: 14,
   },
+  cloud: { marginTop: 36, gap: 6 },
   reviewHead: { marginTop: 36, marginBottom: 10 },
   reviewLead: {
     color: colors.mutedForeground,
@@ -172,6 +195,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   saveText: { color: colors.primaryForeground, fontFamily: fonts.medium },
+  nameHint: {
+    color: colors.mutedForeground,
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    marginTop: 8,
+    lineHeight: 18,
+  },
   rule: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: colors.border,

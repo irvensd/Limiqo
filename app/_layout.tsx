@@ -9,15 +9,16 @@ import {
 import { DarkTheme, Stack, ThemeProvider } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import AuthScreen from "@/components/AuthScreen";
 import CaptureIdeaModal from "@/components/CaptureIdeaModal";
 import CreateGoalModal from "@/components/CreateGoalModal";
 import CreateProjectModal from "@/components/CreateProjectModal";
+import QuietNotice from "@/components/QuietNotice";
 import { colors } from "@/constants/theme";
 import { AuthProvider, useAuth } from "@/lib/auth";
-import { StoreProvider } from "@/lib/store";
+import { StoreProvider, useStore } from "@/lib/store";
 import { UIProvider, useUI } from "@/lib/ui";
 
 export { ErrorBoundary } from "expo-router";
@@ -52,10 +53,6 @@ export default function RootLayout() {
     if (error) throw error;
   }, [error]);
 
-  useEffect(() => {
-    if (loaded) SplashScreen.hideAsync();
-  }, [loaded]);
-
   if (!loaded) return null;
 
   return (
@@ -71,9 +68,15 @@ export default function RootLayout() {
 }
 
 function AuthGate() {
-  const { session, ready } = useAuth();
+  const { session, ready, recovering } = useAuth();
   if (!ready) return null;
-  if (!session) return <AuthScreen />;
+  if (recovering || !session) {
+    return (
+      <RevealSplash>
+        <AuthScreen />
+      </RevealSplash>
+    );
+  }
 
   const meta = session.user.user_metadata;
   const displayName = typeof meta.name === "string" ? meta.name : "";
@@ -81,16 +84,36 @@ function AuthGate() {
   return (
     <StoreProvider key={session.user.id} userId={session.user.id} displayName={displayName}>
       <UIProvider>
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="project/[id]" />
-          <Stack.Screen name="settings" />
-        </Stack>
-        <Modals />
+        <StoreGate>
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="reset-password" />
+            <Stack.Screen name="project/[id]" />
+            <Stack.Screen name="settings" />
+          </Stack>
+          <Modals />
+          <QuietNotice />
+        </StoreGate>
       </UIProvider>
     </StoreProvider>
   );
+}
+
+function RevealSplash({ children }: { children: ReactNode }) {
+  useEffect(() => {
+    SplashScreen.hideAsync();
+  }, []);
+  return children;
+}
+
+function StoreGate({ children }: { children: ReactNode }) {
+  const { ready } = useStore();
+  useEffect(() => {
+    if (ready) SplashScreen.hideAsync();
+  }, [ready]);
+  if (!ready) return null;
+  return children;
 }
 
 function Modals() {

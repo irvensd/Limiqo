@@ -4,15 +4,21 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import AreaDot from "@/components/AreaDot";
 import BackLink from "@/components/BackLink";
+import CloudLine from "@/components/CloudLine";
 import ConfirmSheet from "@/components/ConfirmSheet";
 import CreateProjectModal from "@/components/CreateProjectModal";
+import FormModal from "@/components/FormModal";
+import { fieldStyles, SheetActions } from "@/components/fields";
 import SettingsButton from "@/components/SettingsButton";
 import ProgressBar from "@/components/ProgressBar";
+import SwapTodaySheet from "@/components/SwapTodaySheet";
 import { Kicker, SectionLabel, Subtitle, Title } from "@/components/Type";
 import { colors, fonts } from "@/constants/theme";
-import type { ProjectStatus } from "@/lib/data";
+import type { ProjectStatus, Task } from "@/lib/data";
+import { todayIsFull } from "@/lib/helpers";
 import { linkedCounts } from "@/lib/progress";
 import { useStore } from "@/lib/store";
+import { useUI } from "@/lib/ui";
 
 const statuses: ProjectStatus[] = ["active", "paused", "maintain", "archived"];
 
@@ -20,12 +26,28 @@ export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { state, dispatch } = useStore();
+  const { say } = useUI();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [step, setStep] = useState("");
+  const [swapFor, setSwapFor] = useState<Task | null>(null);
+  const [editTask, setEditTask] = useState<Task | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [deleteTask, setDeleteTask] = useState<Task | null>(null);
   const project = state.projects.find((item) => item.id === id);
   const tasks = state.tasks.filter((task) => task.projectId === id);
+  const aims = state.goals.filter((goal) => goal.projectId === id);
   const counts = project ? linkedCounts(state.tasks, "projectId", project.id) : { done: 0, total: 0 };
+  const todayFull = todayIsFull(state.tasks);
+
+  function addToToday(task: Task) {
+    if (task.done || task.today) return;
+    if (todayFull) {
+      setSwapFor(task);
+      return;
+    }
+    dispatch({ type: "bring-task-to-today", id: task.id });
+  }
 
   if (!project) {
     return (
@@ -33,6 +55,9 @@ export default function ProjectDetailScreen() {
         <View style={[styles.top, styles.topPad]}>
           <BackLink label="All projects" style={styles.back} />
           <SettingsButton />
+        </View>
+        <View style={styles.cloudPad}>
+          <CloudLine />
         </View>
         <Text style={styles.missing}>This project is no longer here.</Text>
       </SafeAreaView>
@@ -51,6 +76,7 @@ export default function ProjectDetailScreen() {
           <BackLink label="All projects" style={styles.back} />
           <SettingsButton />
         </View>
+        <CloudLine />
         <Kicker>One thing at a time</Kicker>
         <Title>{project.name}</Title>
         <Subtitle>{project.description}</Subtitle>
@@ -84,6 +110,18 @@ export default function ProjectDetailScreen() {
           <Text style={styles.deleteText}>Delete</Text>
         </Pressable>
 
+        {aims.length > 0 ? (
+          <View style={styles.aims}>
+            <SectionLabel>Aims</SectionLabel>
+            {aims.map((goal) => (
+              <Text key={goal.id} style={styles.aim}>
+                {goal.title}
+                {goal.status === "active" ? "" : goal.status === "reached" ? " · Reached" : " · Let go"}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+
         <View style={styles.sectionHead}>
           <SectionLabel>Linked work</SectionLabel>
         </View>
@@ -91,17 +129,40 @@ export default function ProjectDetailScreen() {
           <Text style={styles.empty}>No steps yet. Add one below. Checking it off is what moves the percent.</Text>
         ) : (
           tasks.map((task) => (
-            <Pressable
-              key={task.id}
-              onPress={() => dispatch({ type: "toggle-task", id: task.id })}
-              style={styles.row}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.task, task.done && styles.done]}>{task.title}</Text>
-                <Text style={styles.hint}>{task.today ? "On today’s three" : "Waiting in Up next"}</Text>
+            <View key={task.id} style={styles.row}>
+              <View style={styles.rowMain}>
+                <Pressable onPress={() => dispatch({ type: "toggle-task", id: task.id })}>
+                  <Text style={[styles.task, task.done && styles.done]}>{task.title}</Text>
+                  <Text style={styles.hint}>
+                    {task.today ? "On today’s three" : "Waiting in Up next"}
+                  </Text>
+                </Pressable>
+                {!task.done && !task.today ? (
+                  <Pressable onPress={() => addToToday(task)} hitSlop={8} style={styles.addToday}>
+                    <Text style={styles.addTodayText}>
+                      {todayFull ? "Add to Today — swap a slot" : "Add to Today"}
+                    </Text>
+                  </Pressable>
+                ) : null}
+                <View style={styles.stepActions}>
+                  <Pressable
+                    onPress={() => {
+                      setEditTitle(task.title);
+                      setEditTask(task);
+                    }}
+                    hitSlop={8}
+                  >
+                    <Text style={styles.addTodayText}>Edit</Text>
+                  </Pressable>
+                  <Pressable onPress={() => setDeleteTask(task)} hitSlop={8}>
+                    <Text style={styles.addTodayText}>Delete</Text>
+                  </Pressable>
+                </View>
               </View>
-              <View style={[styles.check, task.done && styles.checkOn]} />
-            </Pressable>
+              <Pressable onPress={() => dispatch({ type: "toggle-task", id: task.id })} hitSlop={8}>
+                <View style={[styles.check, task.done && styles.checkOn]} />
+              </Pressable>
+            </View>
           ))
         )}
         <View style={styles.add}>
@@ -129,6 +190,9 @@ export default function ProjectDetailScreen() {
             <Text style={styles.addText}>Add</Text>
           </Pressable>
         </View>
+        <Text style={styles.addHint}>
+          New steps wait in Up next. Tap Add to Today when you want one of today’s three.
+        </Text>
       </ScrollView>
       <CreateProjectModal
         open={editing}
@@ -146,7 +210,65 @@ export default function ProjectDetailScreen() {
         onConfirm={() => {
           dispatch({ type: "delete-project", id: project.id });
           setDeleteOpen(false);
+          say("Deleted.");
           router.back();
+        }}
+      />
+      <FormModal
+        open={Boolean(editTask)}
+        title="Projects"
+        heading="Edit this step"
+        onClose={() => {
+          setEditTask(null);
+          setEditTitle("");
+        }}
+      >
+        <Text style={fieldStyles.label}>The step</Text>
+        <TextInput
+          value={editTitle}
+          onChangeText={setEditTitle}
+          placeholder="The next thing you would actually do"
+          placeholderTextColor={colors.mutedForeground}
+          style={fieldStyles.input}
+        />
+        <SheetActions
+          confirmLabel="Save"
+          onCancel={() => {
+            setEditTask(null);
+            setEditTitle("");
+          }}
+          onConfirm={() => {
+            if (!editTask || !editTitle.trim()) return;
+            dispatch({ type: "edit-task", id: editTask.id, title: editTitle });
+            setEditTask(null);
+            setEditTitle("");
+            say("Saved.");
+          }}
+        />
+      </FormModal>
+      <ConfirmSheet
+        open={Boolean(deleteTask)}
+        kicker="Projects"
+        heading="Delete this step?"
+        body={`${deleteTask?.title ?? "This step"} is removed for good. If it is on Today, that slot opens.`}
+        confirmLabel="Delete"
+        destructive
+        onClose={() => setDeleteTask(null)}
+        onConfirm={() => {
+          if (!deleteTask) return;
+          dispatch({ type: "delete-task", id: deleteTask.id });
+          setDeleteTask(null);
+          say("Deleted.");
+        }}
+      />
+      <SwapTodaySheet
+        open={Boolean(swapFor)}
+        incomingTitle={swapFor?.title ?? ""}
+        onClose={() => setSwapFor(null)}
+        onChoose={(outId) => {
+          if (!swapFor) return;
+          dispatch({ type: "swap-today-task", outId, inId: swapFor.id });
+          setSwapFor(null);
         }}
       />
     </SafeAreaView>
@@ -163,6 +285,7 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   topPad: { paddingHorizontal: 24, paddingTop: 20 },
+  cloudPad: { paddingHorizontal: 24 },
   back: { marginBottom: 0 },
   missing: {
     color: colors.mutedForeground,
@@ -197,6 +320,13 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
   },
   addText: { color: colors.primary, fontSize: 14, fontFamily: fonts.medium },
+  addHint: {
+    color: colors.mutedForeground,
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: fonts.regular,
+    marginTop: 10,
+  },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 28 },
   delete: { marginTop: 16, marginBottom: 36, alignSelf: "flex-start" },
   deleteText: { color: colors.mutedForeground, fontSize: 13, fontFamily: fonts.regular },
@@ -209,14 +339,38 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     paddingBottom: 16,
   },
+  aims: {
+    marginTop: 28,
+    marginBottom: 8,
+    gap: 10,
+  },
+  aim: {
+    color: colors.foreground,
+    fontSize: 16,
+    lineHeight: 22,
+    fontFamily: fonts.medium,
+  },
   empty: { color: colors.mutedForeground, fontSize: 14, marginTop: 20, fontFamily: fonts.regular },
   row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
+    gap: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
     paddingVertical: 22,
+  },
+  rowMain: { flex: 1 },
+  addToday: { marginTop: 12, alignSelf: "flex-start" },
+  stepActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 20,
+    marginTop: 12,
+  },
+  addTodayText: {
+    color: colors.mutedForeground,
+    fontSize: 13,
+    fontFamily: fonts.regular,
   },
   task: { color: colors.foreground, fontSize: 17, fontFamily: fonts.medium },
   done: { color: colors.mutedForeground, textDecorationLine: "line-through" },

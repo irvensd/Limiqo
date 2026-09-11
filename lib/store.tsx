@@ -1,5 +1,16 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { createContext, useContext, useEffect, useMemo, useReducer, useState, type Dispatch, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  type Dispatch,
+  type ReactNode,
+} from "react";
 import {
   createSeed,
   DEFAULT_AREAS,
@@ -9,9 +20,16 @@ import {
   type IdeaStatus,
   type ProjectStatus,
 } from "./data";
-import { localDateKey, uid } from "./helpers";
+import { localDateKey, openTodayCount, uid } from "./helpers";
 import { withLinkedProgress } from "./progress";
-import { loadRemote, saveRemote } from "./sync";
+import { cloudMessage, loadRemote, saveRemote } from "./sync";
+
+export type CloudStatus = "idle" | "saving" | "saved" | "error";
+
+export type CloudState = {
+  status: CloudStatus;
+  message: string;
+};
 import { useNow } from "./useNow";
 
 const STORAGE_KEY = "limiqo.v2";
@@ -22,6 +40,8 @@ type Action =
   | { type: "create-project"; name: string; description: string; area: Area }
   | { type: "edit-project"; id: string; name: string; description: string; area: Area }
   | { type: "create-project-task"; projectId: string; title: string }
+  | { type: "edit-task"; id: string; title: string }
+  | { type: "delete-task"; id: string }
   | { type: "set-project-status"; id: string; status: ProjectStatus }
   | { type: "create-idea"; title: string; description: string; area: Area }
   | { type: "edit-idea"; id: string; title: string; description: string; area: Area }
@@ -33,10 +53,11 @@ type Action =
       note: string;
       area: Area;
       nextStep: string;
-      addToToday: boolean;
+      projectId: string | null;
     }
-  | { type: "edit-goal"; id: string; title: string; note: string; area: Area }
-  | { type: "bring-goal-to-today"; id: string }
+  | { type: "edit-goal"; id: string; title: string; note: string; area: Area; projectId: string | null }
+  | { type: "bring-goal-to-today"; id: string; step?: string }
+  | { type: "bring-task-to-today"; id: string }
   | { type: "set-goal-status"; id: string; status: GoalStatus }
   | { type: "delete-goal"; id: string }
   | { type: "delete-project"; id: string }
@@ -45,7 +66,7 @@ type Action =
   | { type: "delete-area"; name: string }
   | { type: "edit-today-task"; id: string; title: string }
   | { type: "park-today-task"; id: string }
-  | { type: "swap-today-task"; outId: string; inId?: string; goalId?: string }
+  | { type: "swap-today-task"; outId: string; inId?: string; goalId?: string; step?: string }
   | { type: "set-review"; key: keyof AppState["review"] }
   | { type: "set-name"; name: string }
   | { type: "complete-onboarding"; name?: string }
@@ -111,6 +132,22 @@ function reduce(state: AppState, action: Action): AppState {
         ],
       };
     }
+    case "edit-task":
+    case "edit-today-task": {
+      const title = action.title.trim();
+      if (!title) return state;
+      return {
+        ...state,
+        tasks: state.tasks.map((task) =>
+          task.id === action.id ? { ...task, title } : task,
+        ),
+      };
+    }
+    case "delete-task":
+      return {
+        ...state,
+        tasks: state.tasks.filter((task) => task.id !== action.id),
+      };
     case "create-project":
       return {
         ...state,
@@ -218,10 +255,11 @@ function reduce(state: AppState, action: Action): AppState {
     }
     case "create-goal": {
       const goalId = uid("g");
-      const todayCount = state.tasks.filter((task) => task.today).length;
-      const placeToday = action.addToToday && todayCount < 3;
       const nextOrder = state.tasks.reduce((max, task) => Math.max(max, task.order), 0) + 1;
       const step = action.nextStep.trim();
+      const projectId = state.projects.some((item) => item.id === action.projectId)
+        ? action.projectId
+        : null;
       return {
         ...state,
         goals: [
@@ -231,7 +269,7 @@ function reduce(state: AppState, action: Action): AppState {
             note: action.note.trim() || "A deliberate commitment to what matters.",
             area: action.area,
             progress: 0,
-            projectId: null,
+            projectId,
             status: "active",
           },
           ...state.goals,
@@ -242,10 +280,10 @@ function reduce(state: AppState, action: Action): AppState {
                 id: uid("t"),
                 title: step,
                 area: action.area,
-                projectId: null,
+                projectId,
                 goalId,
                 done: false,
-                today: placeToday,
+                today: false,
                 order: nextOrder,
               },
               ...state.tasks,
@@ -256,6 +294,9 @@ function reduce(state: AppState, action: Action): AppState {
     case "edit-goal": {
       const title = action.title.trim();
       if (!title) return state;
+      const projectId = state.projects.some((item) => item.id === action.projectId)
+        ? action.projectId
+        : null;
       return {
         ...state,
         goals: state.goals.map((goal) =>
@@ -265,17 +306,19 @@ function reduce(state: AppState, action: Action): AppState {
                 title,
                 note: action.note.trim() || goal.note,
                 area: action.area,
+                projectId,
               }
             : goal,
         ),
         tasks: state.tasks.map((task) =>
-          task.goalId === action.id ? { ...task, area: action.area } : task,
+          task.goalId === action.id ? { ...task, area: action.area, projectId } : task,
         ),
       };
     }
     case "set-goal-status": {
       const goal = state.goals.find((item) => item.id === action.id);
-      if (!goal || goal.status === action.status) return state;
+      if (!goal || goal.status !== "active") return state;
+      if (action.status === "active") return state;
       return {
         ...state,
         goals: state.goals.map((item) =>
@@ -343,7 +386,7 @@ function reduce(state: AppState, action: Action): AppState {
     case "bring-goal-to-today": {
       const goal = state.goals.find((item) => item.id === action.id);
       if (!goal || goal.status !== "active") return state;
-      const todayCount = state.tasks.filter((task) => task.today).length;
+      const todayCount = openTodayCount(state.tasks);
       if (todayCount >= 3) return state;
       const existing = state.tasks.find(
         (task) => task.goalId === goal.id && !task.done && !task.today,
@@ -360,13 +403,15 @@ function reduce(state: AppState, action: Action): AppState {
         (task) => task.goalId === goal.id && task.today && !task.done,
       );
       if (alreadyToday) return state;
+      const step = action.step?.trim();
+      if (!step) return state;
       const nextOrder = state.tasks.reduce((max, task) => Math.max(max, task.order), 0) + 1;
       return {
         ...state,
         tasks: [
           {
             id: uid("t"),
-            title: goal.title,
+            title: step,
             area: goal.area,
             projectId: goal.projectId,
             goalId: goal.id,
@@ -378,13 +423,15 @@ function reduce(state: AppState, action: Action): AppState {
         ],
       };
     }
-    case "edit-today-task": {
-      const title = action.title.trim();
-      if (!title) return state;
+    case "bring-task-to-today": {
+      const target = state.tasks.find((task) => task.id === action.id);
+      if (!target || target.done || target.today) return state;
+      const todayCount = openTodayCount(state.tasks);
+      if (todayCount >= 3) return state;
       return {
         ...state,
         tasks: state.tasks.map((task) =>
-          task.id === action.id ? { ...task, title } : task,
+          task.id === action.id ? { ...task, today: true } : task,
         ),
       };
     }
@@ -421,13 +468,15 @@ function reduce(state: AppState, action: Action): AppState {
             ),
           };
         }
+        const step = action.step?.trim();
+        if (!step) return { ...state, tasks: parked };
         const nextOrder = parked.reduce((max, task) => Math.max(max, task.order), 0) + 1;
         return {
           ...state,
           tasks: [
             {
               id: uid("t"),
-              title: goal.title,
+              title: step,
               area: goal.area,
               projectId: goal.projectId,
               goalId: goal.id,
@@ -480,6 +529,8 @@ const StoreContext = createContext<{
   dispatch: Dispatch<Action>;
   ready: boolean;
   now: Date;
+  cloud: CloudState;
+  retryCloud: () => void;
 } | null>(null);
 
 export function StoreProvider({
@@ -496,16 +547,41 @@ export function StoreProvider({
     withLinkedProgress(createSeed(displayName)),
   );
   const [ready, setReady] = useState(false);
+  const [cloud, setCloud] = useState<CloudState>({ status: "idle", message: "" });
   const storageKey = `${STORAGE_KEY}.${userId}`;
+  const stateRef = useRef(state);
+  const saveGen = useRef(0);
+  stateRef.current = state;
+
+  const persistCloud = useCallback(
+    async (next: AppState) => {
+      const gen = ++saveGen.current;
+      setCloud((current) => ({ ...current, status: "saving" }));
+      try {
+        await saveRemote(userId, next);
+        if (gen !== saveGen.current) return;
+        setCloud({ status: "saved", message: "" });
+      } catch (error) {
+        if (gen !== saveGen.current) return;
+        setCloud({ status: "error", message: cloudMessage(error) });
+      }
+    },
+    [userId],
+  );
+
+  const retryCloud = useCallback(() => {
+    persistCloud(stateRef.current);
+  }, [persistCloud]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      let loadFailed = "";
       try {
         const [raw, remote] = await Promise.all([
           AsyncStorage.getItem(storageKey),
           loadRemote(userId).catch((error) => {
-            console.warn("Limiqo could not load from Supabase", error);
+            loadFailed = cloudMessage(error);
             return null;
           }),
         ]);
@@ -529,6 +605,7 @@ export function StoreProvider({
         } else if (raw) {
           dispatch({ type: "hydrate", payload: JSON.parse(raw) as AppState });
         }
+        if (loadFailed) setCloud({ status: "error", message: loadFailed });
       } finally {
         if (!cancelled) setReady(true);
       }
@@ -553,14 +630,15 @@ export function StoreProvider({
     if (!ready) return;
     AsyncStorage.setItem(storageKey, JSON.stringify(state));
     const timer = setTimeout(() => {
-      saveRemote(userId, state).catch((error) => {
-        console.warn("Limiqo could not save to Supabase", error);
-      });
+      persistCloud(state);
     }, 400);
     return () => clearTimeout(timer);
-  }, [ready, state, storageKey, userId]);
+  }, [ready, state, storageKey, persistCloud]);
 
-  const value = useMemo(() => ({ state, dispatch, ready, now }), [state, dispatch, ready, now]);
+  const value = useMemo(
+    () => ({ state, dispatch, ready, now, cloud, retryCloud }),
+    [state, dispatch, ready, now, cloud, retryCloud],
+  );
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 

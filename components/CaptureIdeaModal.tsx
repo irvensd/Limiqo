@@ -6,6 +6,7 @@ import FormModal from "@/components/FormModal";
 import { colors } from "@/constants/theme";
 import type { Area, Idea } from "@/lib/data";
 import { useStore } from "@/lib/store";
+import { useUI } from "@/lib/ui";
 
 export default function CaptureIdeaModal({
   open,
@@ -17,9 +18,11 @@ export default function CaptureIdeaModal({
   idea?: Idea | null;
 }) {
   const { dispatch } = useStore();
+  const { say } = useUI();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [area, setArea] = useState<Area>("Life");
+  const [needName, setNeedName] = useState(false);
   const editing = Boolean(idea);
 
   useEffect(() => {
@@ -27,14 +30,21 @@ export default function CaptureIdeaModal({
     setTitle(idea?.title ?? "");
     setDescription(idea?.description ?? "");
     setArea(idea?.area ?? "Life");
+    setNeedName(false);
   }, [open, idea]);
 
   function submit() {
-    if (!title.trim()) return;
+    if (!title.trim()) {
+      setNeedName(true);
+      return;
+    }
+    setNeedName(false);
     if (idea) {
       dispatch({ type: "edit-idea", id: idea.id, title, description, area });
+      say("Saved.");
     } else {
       dispatch({ type: "create-idea", title, description, area });
+      say("Idea quarantined.");
     }
     setTitle("");
     setDescription("");
@@ -52,11 +62,15 @@ export default function CaptureIdeaModal({
       <Text style={fieldStyles.label}>The spark</Text>
       <TextInput
         value={title}
-        onChangeText={setTitle}
+        onChangeText={(value) => {
+          setTitle(value);
+          setNeedName(false);
+        }}
         placeholder="Name it. Do not build it yet."
         placeholderTextColor={colors.mutedForeground}
         style={fieldStyles.input}
       />
+      {needName ? <Text style={fieldStyles.hint}>Name it first.</Text> : null}
       <Text style={fieldStyles.label}>Why it arrived</Text>
       <TextInput
         value={description}
@@ -68,6 +82,11 @@ export default function CaptureIdeaModal({
       />
       <Text style={fieldStyles.label}>Area</Text>
       <AreaChips value={area} onChange={setArea} />
+      {editing ? null : (
+        <Text style={fieldStyles.hint}>
+          It sits for fourteen days. You can still decide anytime.
+        </Text>
+      )}
       <SheetActions
         confirmLabel={editing ? "Save" : "Quarantine it"}
         onCancel={onClose}

@@ -6,6 +6,7 @@ import FormModal from "@/components/FormModal";
 import { colors } from "@/constants/theme";
 import type { Area, Project } from "@/lib/data";
 import { useStore } from "@/lib/store";
+import { useUI } from "@/lib/ui";
 
 export default function CreateProjectModal({
   open,
@@ -17,9 +18,11 @@ export default function CreateProjectModal({
   project?: Project | null;
 }) {
   const { dispatch } = useStore();
+  const { say } = useUI();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [area, setArea] = useState<Area>("Product");
+  const [needName, setNeedName] = useState(false);
   const editing = Boolean(project);
 
   useEffect(() => {
@@ -27,14 +30,21 @@ export default function CreateProjectModal({
     setName(project?.name ?? "");
     setDescription(project?.description ?? "");
     setArea(project?.area ?? "Product");
+    setNeedName(false);
   }, [open, project]);
 
   function submit() {
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      setNeedName(true);
+      return;
+    }
+    setNeedName(false);
     if (project) {
       dispatch({ type: "edit-project", id: project.id, name, description, area });
+      say("Saved.");
     } else {
       dispatch({ type: "create-project", name, description, area });
+      say("Project created.");
     }
     setName("");
     setDescription("");
@@ -52,11 +62,15 @@ export default function CreateProjectModal({
       <Text style={fieldStyles.label}>Name</Text>
       <TextInput
         value={name}
-        onChangeText={setName}
+        onChangeText={(value) => {
+          setName(value);
+          setNeedName(false);
+        }}
         placeholder="What deserves a name?"
         placeholderTextColor={colors.mutedForeground}
         style={fieldStyles.input}
       />
+      {needName ? <Text style={fieldStyles.hint}>Name it first.</Text> : null}
       <Text style={fieldStyles.label}>Why it exists</Text>
       <TextInput
         value={description}

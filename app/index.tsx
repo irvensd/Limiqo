@@ -18,7 +18,7 @@ const lines = [
   },
   {
     title: "Ideas wait",
-    body: "Quarantine first. A good idea does not have to become work.",
+    body: "Fourteen days first. A good idea does not have to become work.",
   },
 ];
 

@@ -17,7 +17,7 @@ import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
 import type { Project } from "@/lib/data";
 
-const tabs = ["Overview", "Active", "Paused", "Archived"] as const;
+const tabs = ["Overview", "Active", "Paused", "Maintain", "Archived"] as const;
 
 function matches(project: Project, tab: (typeof tabs)[number]) {
   if (tab === "Overview") return true;
@@ -26,7 +26,7 @@ function matches(project: Project, tab: (typeof tabs)[number]) {
 
 export default function ProjectsScreen() {
   const { state, dispatch } = useStore();
-  const { openProject } = useUI();
+  const { openProject, say } = useUI();
   const router = useRouter();
   const [tab, setTab] = useState<(typeof tabs)[number]>("Overview");
   const [pending, setPending] = useState<Project | null>(null);
@@ -35,14 +35,13 @@ export default function ProjectsScreen() {
     () => state.projects.filter((project) => matches(project, tab)),
     [state.projects, tab],
   );
-  const activeCount = state.projects.filter((project) => project.status === "active").length;
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.content}>
         <ScreenHead kicker="Less, but better" />
         <Title>Projects</Title>
-        <Subtitle>Keep the active list small. Give your best work room.</Subtitle>
+        <Subtitle>Create as many as you hold. The three that matter are the ones you put on Today.</Subtitle>
         <View style={{ height: 22 }} />
         <PrimaryButton label="Create project" onPress={openProject} />
 
@@ -58,10 +57,6 @@ export default function ProjectsScreen() {
               </Pressable>
             ))}
           </ScrollView>
-          <View style={styles.count}>
-            <View style={styles.live} />
-            <Text style={styles.countText}>{activeCount} / 3 active</Text>
-          </View>
         </View>
 
         {visible.length === 0 ? (
@@ -128,6 +123,7 @@ export default function ProjectsScreen() {
           if (!pending) return;
           dispatch({ type: "delete-project", id: pending.id });
           setPending(null);
+          say("Deleted.");
         }}
       />
     </SafeAreaView>
@@ -149,9 +145,6 @@ const styles = StyleSheet.create({
   tabOn: { backgroundColor: colors.secondary },
   tabText: { color: colors.mutedForeground, fontSize: 12, fontFamily: fonts.regular },
   tabTextOn: { color: colors.foreground },
-  count: { flexDirection: "row", alignItems: "center", gap: 8 },
-  live: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary },
-  countText: { color: colors.mutedForeground, fontSize: 12, fontFamily: fonts.regular },
   empty: { color: colors.mutedForeground, fontSize: 14, marginTop: 24, fontFamily: fonts.regular },
   row: {
     flexDirection: "row",

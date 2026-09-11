@@ -2,6 +2,14 @@ export function pad(n: number) {
   return String(n).padStart(2, "0");
 }
 
+export function openTodayCount(tasks: { today: boolean; done: boolean }[]) {
+  return tasks.filter((task) => task.today && !task.done).length;
+}
+
+export function todayIsFull(tasks: { today: boolean; done: boolean }[]) {
+  return openTodayCount(tasks) >= 3;
+}
+
 export function startOfLocalDay(date = new Date()) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }

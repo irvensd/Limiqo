@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Eye, EyeSlash } from "phosphor-react-native";
 import {
   KeyboardAvoidingView,
@@ -15,7 +15,7 @@ import { Wordmark } from "@/components/Brand";
 import { colors, fonts } from "@/constants/theme";
 import { useAuth } from "@/lib/auth";
 
-type Mode = "in" | "up" | "reset";
+type Mode = "in" | "up" | "reset" | "set";
 
 const copy: Record<Mode, { title: string; lede: string; action: string }> = {
   in: {
@@ -30,35 +30,90 @@ const copy: Record<Mode, { title: string; lede: string; action: string }> = {
   },
   reset: {
     title: "Reset password.",
-    lede: "We will email you a link.",
+    lede: "We will email a link. Open it on this phone, or enter the code from the message.",
     action: "Send reset link",
+  },
+  set: {
+    title: "Choose a new password.",
+    lede: "Then you can open your lists with it.",
+    action: "Save password",
   },
 };
 
 export default function AuthScreen() {
-  const { signIn, signUp, resetPassword } = useAuth();
-  const [mode, setMode] = useState<Mode>("in");
+  const { signIn, signUp, resetPassword, verifyRecovery, updatePassword, signOut, recovering } =
+    useAuth();
+  const [mode, setMode] = useState<Mode>(recovering ? "set" : "in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [code, setCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
+
+  useEffect(() => {
+    if (recovering) {
+      setMode("set");
+      setError("");
+      setNote("");
+    }
+  }, [recovering]);
 
   function switchMode(next: Mode) {
     setMode(next);
     setError("");
     setNote("");
     setShowPassword(false);
+    setConfirm("");
+    setCode("");
   }
 
   async function submit() {
     const nextEmail = email.trim();
+    if (mode === "reset") {
+      if (!nextEmail) {
+        setError("Enter your email.");
+        return;
+      }
+      setBusy(true);
+      setError("");
+      setNote("");
+      if (code.trim()) {
+        const next = await verifyRecovery(nextEmail, code);
+        if (next) setError(next);
+      } else {
+        const next = await resetPassword(nextEmail);
+        if (next) setError(next);
+        else setNote("Check your email. Open the link on this phone, or come back with the code.");
+      }
+      setBusy(false);
+      return;
+    }
+
+    if (mode === "set") {
+      if (password.length < 6) {
+        setError("Password needs at least 6 characters.");
+        return;
+      }
+      if (password !== confirm) {
+        setError("Those passwords do not match.");
+        return;
+      }
+      setBusy(true);
+      setError("");
+      const next = await updatePassword(password);
+      if (next) setError(next);
+      setBusy(false);
+      return;
+    }
+
     if (!nextEmail) {
       setError("Enter your email.");
       return;
     }
-    if (mode !== "reset" && password.length < 6) {
+    if (password.length < 6) {
       setError("Password needs at least 6 characters.");
       return;
     }
@@ -70,7 +125,7 @@ export default function AuthScreen() {
     if (mode === "in") {
       const next = await signIn(nextEmail, password);
       if (next) setError(next);
-    } else if (mode === "up") {
+    } else {
       const result = await signUp(nextEmail, password);
       if (result.error) setError(result.error);
       else if (result.needsConfirm) {
@@ -78,14 +133,13 @@ export default function AuthScreen() {
         setShowPassword(false);
         setNote("Check your email to confirm, then sign in.");
       }
-    } else {
-      const next = await resetPassword(nextEmail);
-      if (next) setError(next);
-      else setNote("Check your email for a reset link.");
     }
 
     setBusy(false);
   }
+
+  const actionLabel =
+    mode === "reset" && code.trim() ? "Continue with code" : copy[mode].action;
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
@@ -104,23 +158,45 @@ export default function AuthScreen() {
             <Text style={styles.headline}>{copy[mode].title}</Text>
             <Text style={styles.lede}>{copy[mode].lede}</Text>
 
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              value={email}
-              onChangeText={setEmail}
-              placeholder="you@email.com"
-              placeholderTextColor={colors.mutedForeground}
-              style={styles.input}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="email-address"
-              textContentType="emailAddress"
-              autoComplete="email"
-            />
-
-            {mode !== "reset" ? (
+            {mode !== "set" ? (
               <>
-                <Text style={styles.label}>Password</Text>
+                <Text style={styles.label}>Email</Text>
+                <TextInput
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="you@email.com"
+                  placeholderTextColor={colors.mutedForeground}
+                  style={styles.input}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                  textContentType="emailAddress"
+                  autoComplete="email"
+                />
+              </>
+            ) : null}
+
+            {mode === "reset" ? (
+              <>
+                <Text style={styles.label}>Code from email</Text>
+                <TextInput
+                  value={code}
+                  onChangeText={setCode}
+                  placeholder="Optional"
+                  placeholderTextColor={colors.mutedForeground}
+                  style={styles.input}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="number-pad"
+                  textContentType="oneTimeCode"
+                  autoComplete="one-time-code"
+                />
+              </>
+            ) : null}
+
+            {mode === "in" || mode === "up" || mode === "set" ? (
+              <>
+                <Text style={styles.label}>{mode === "set" ? "New password" : "Password"}</Text>
                 <View style={styles.passwordWrap}>
                   <TextInput
                     value={password}
@@ -131,8 +207,8 @@ export default function AuthScreen() {
                     secureTextEntry={!showPassword}
                     textContentType={mode === "in" ? "password" : "newPassword"}
                     autoComplete={mode === "in" ? "password" : "new-password"}
-                    returnKeyType="done"
-                    onSubmitEditing={submit}
+                    returnKeyType={mode === "set" ? "next" : "done"}
+                    onSubmitEditing={mode === "set" ? undefined : submit}
                   />
                   <Pressable
                     onPress={() => setShowPassword((open) => !open)}
@@ -147,7 +223,24 @@ export default function AuthScreen() {
                     )}
                   </Pressable>
                 </View>
-                {mode === "up" ? (
+                {mode === "set" ? (
+                  <>
+                    <Text style={styles.label}>Type it again</Text>
+                    <TextInput
+                      value={confirm}
+                      onChangeText={setConfirm}
+                      placeholder="Same password"
+                      placeholderTextColor={colors.mutedForeground}
+                      style={styles.input}
+                      secureTextEntry={!showPassword}
+                      textContentType="newPassword"
+                      autoComplete="new-password"
+                      returnKeyType="done"
+                      onSubmitEditing={submit}
+                    />
+                    <Text style={styles.hint}>At least 6 characters.</Text>
+                  </>
+                ) : mode === "up" ? (
                   <Text style={styles.hint}>At least 6 characters.</Text>
                 ) : (
                   <Pressable onPress={() => switchMode("reset")} hitSlop={8} style={styles.forgot}>
@@ -165,11 +258,17 @@ export default function AuthScreen() {
               disabled={busy}
               style={[styles.cta, busy && styles.ctaBusy]}
             >
-              <Text style={styles.ctaText}>{busy ? "One moment…" : copy[mode].action}</Text>
+              <Text style={styles.ctaText}>{busy ? "One moment…" : actionLabel}</Text>
             </Pressable>
 
-            {mode === "reset" ? (
-              <Pressable onPress={() => switchMode("in")} style={styles.switch}>
+            {mode === "reset" || mode === "set" ? (
+              <Pressable
+                onPress={() => {
+                  if (mode === "set") void signOut();
+                  switchMode("in");
+                }}
+                style={styles.switch}
+              >
                 <Text style={styles.switchText}>Back to sign in</Text>
               </Pressable>
             ) : (

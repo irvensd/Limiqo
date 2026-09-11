@@ -15,7 +15,6 @@ export default function WeeklyReview() {
   );
   const checks = [
     { key: "clearedInbox" as const, label: "Cleared the idea inbox" },
-    { key: "choseTomorrow" as const, label: "Chose tomorrow’s three" },
     { key: "archivedOne" as const, label: "Archived one thing that no longer belongs" },
   ];
 

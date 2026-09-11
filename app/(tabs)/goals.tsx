@@ -1,29 +1,30 @@
 import { useState } from "react";
 import { ArrowUpRight } from "phosphor-react-native";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import AreaDot from "@/components/AreaDot";
 import ConfirmSheet from "@/components/ConfirmSheet";
 import CreateGoalModal from "@/components/CreateGoalModal";
 import FormModal from "@/components/FormModal";
+import { fieldStyles, SheetActions } from "@/components/fields";
 import PrimaryButton from "@/components/PrimaryButton";
 import ProgressBar from "@/components/ProgressBar";
 import ScreenHead from "@/components/ScreenHead";
+import SwapTodaySheet from "@/components/SwapTodaySheet";
 import { SectionLabel, Subtitle, Title } from "@/components/Type";
 import { colors, floatingTab, fonts } from "@/constants/theme";
 import type { Goal, GoalStatus } from "@/lib/data";
-import { pad } from "@/lib/helpers";
+import { pad, todayIsFull } from "@/lib/helpers";
 import { linkedCounts } from "@/lib/progress";
 import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
 
 export default function GoalsScreen() {
   const { state, dispatch } = useStore();
-  const { openGoal } = useUI();
+  const { openGoal, say } = useUI();
   const router = useRouter();
-  const todaySlots = [...state.tasks.filter((task) => task.today)].sort((a, b) => a.order - b.order);
-  const todayFull = todaySlots.length >= 3;
+  const todayFull = todayIsFull(state.tasks);
   const holding = state.goals.filter((goal) => goal.status === "active");
   const closed = state.goals.filter((goal) => goal.status !== "active");
   const [pending, setPending] = useState<
@@ -31,15 +32,49 @@ export default function GoalsScreen() {
     | { kind: "delete"; goal: Goal }
     | null
   >(null);
-  const [swapFor, setSwapFor] = useState<Goal | null>(null);
+  const [swapFor, setSwapFor] = useState<{
+    goal: Goal;
+    inId?: string;
+    step?: string;
+  } | null>(null);
   const [editing, setEditing] = useState<Goal | null>(null);
+  const [ask, setAsk] = useState<Goal | null>(null);
+  const [askStep, setAskStep] = useState("");
 
-  function addToToday(goal: Goal) {
+  function waitingFor(goal: Goal) {
+    return state.tasks.find((task) => task.goalId === goal.id && !task.today && !task.done);
+  }
+
+  function placeGoal(goal: Goal, step?: string, inId?: string) {
     if (todayFull) {
-      setSwapFor(goal);
+      setSwapFor({ goal, step, inId });
       return;
     }
-    dispatch({ type: "bring-goal-to-today", id: goal.id });
+    if (inId) {
+      dispatch({ type: "bring-task-to-today", id: inId });
+      return;
+    }
+    dispatch({ type: "bring-goal-to-today", id: goal.id, step });
+  }
+
+  function addToToday(goal: Goal) {
+    const waiting = waitingFor(goal);
+    if (waiting) {
+      placeGoal(goal, waiting.title, waiting.id);
+      return;
+    }
+    setAskStep("");
+    setAsk(goal);
+  }
+
+  function submitStep(asAim = false) {
+    if (!ask) return;
+    const step = asAim ? ask.title : askStep.trim();
+    if (!step) return;
+    const goal = ask;
+    setAsk(null);
+    setAskStep("");
+    placeGoal(goal, step);
   }
 
   return (
@@ -49,9 +84,9 @@ export default function GoalsScreen() {
         <Title>Goals</Title>
         <Subtitle>Aims you hold on purpose. Not a schedule.</Subtitle>
         <View style={styles.rules}>
-          <Text style={styles.rule}>No deadline. You decide when it ends — mark it reached, or let it go.</Text>
+          <Text style={styles.rule}>No deadline. You decide when it ends — mark it reached, or let it go. That door does not open again.</Text>
           <Text style={styles.rule}>
-            It does not show up every day. Use Add to Today on a goal when you want one step on the Today tab.
+            It does not show up every day. Use Add to Today when you want one step on the Today tab.
           </Text>
         </View>
         <PrimaryButton label="Add a goal" onPress={openGoal} />
@@ -67,6 +102,7 @@ export default function GoalsScreen() {
             (task) => task.goalId === goal.id && !task.today && !task.done,
           );
           const counts = linkedCounts(state.tasks, "goalId", goal.id);
+          const project = state.projects.find((item) => item.id === goal.projectId);
           return (
             <View key={goal.id} style={styles.row}>
               <Text style={styles.num}>{pad(index + 1)}</Text>
@@ -76,12 +112,12 @@ export default function GoalsScreen() {
                 <View style={styles.meta}>
                   <AreaDot area={goal.area} />
                   {todayTask ? <Text style={styles.onToday}>On today</Text> : null}
-                  {goal.projectId ? (
+                  {project ? (
                     <Pressable
-                      onPress={() => router.push(`/project/${goal.projectId}`)}
+                      onPress={() => router.push(`/project/${project.id}`)}
                       style={styles.link}
                     >
-                      <Text style={styles.linkText}>Linked project</Text>
+                      <Text style={styles.linkText}>{project.name}</Text>
                       <ArrowUpRight size={12} color={colors.mutedForeground} />
                     </Pressable>
                   ) : null}
@@ -133,6 +169,9 @@ export default function GoalsScreen() {
         {closed.length > 0 ? (
           <View style={styles.closedBlock}>
             <SectionLabel>Closed</SectionLabel>
+            <Text style={styles.closedLead}>
+              Reached and let go stay here. They do not return to the holding list.
+            </Text>
             {closed.map((goal) => (
               <View key={goal.id} style={styles.closedRow}>
                 <Text style={styles.closedTitle}>{goal.title}</Text>
@@ -151,31 +190,52 @@ export default function GoalsScreen() {
       </ScrollView>
 
       <CreateGoalModal open={Boolean(editing)} goal={editing} onClose={() => setEditing(null)} />
-      <FormModal
+      <SwapTodaySheet
         open={Boolean(swapFor)}
-        title="Today’s three"
-        heading="Swap onto Today"
+        incomingTitle={swapFor?.step ?? swapFor?.goal.title ?? ""}
         onClose={() => setSwapFor(null)}
+        onChoose={(outId) => {
+          if (!swapFor) return;
+          dispatch({
+            type: "swap-today-task",
+            outId,
+            inId: swapFor.inId,
+            goalId: swapFor.inId ? undefined : swapFor.goal.id,
+            step: swapFor.step,
+          });
+          setSwapFor(null);
+        }}
+      />
+      <FormModal
+        open={Boolean(ask)}
+        title="Goals"
+        heading="The next step"
+        onClose={() => {
+          setAsk(null);
+          setAskStep("");
+        }}
       >
-        <Text style={styles.swapBody}>
-          Today already has three. Pick one to move to Up next. “{swapFor?.title}” takes that slot.
+        <Text style={styles.askBody}>
+          Today needs a step, not just the aim. Write the next thing you would actually do, or put the aim itself on Today.
         </Text>
-        {todaySlots.map((task) => (
-          <Pressable
-            key={task.id}
-            onPress={() => {
-              if (!swapFor) return;
-              dispatch({ type: "swap-today-task", outId: task.id, goalId: swapFor.id });
-              setSwapFor(null);
-            }}
-            style={styles.swapOption}
-          >
-            <Text style={styles.swapKicker}>{task.done ? "Done" : "Today"}</Text>
-            <Text style={styles.swapTitle}>{task.title}</Text>
-          </Pressable>
-        ))}
-        <Pressable onPress={() => setSwapFor(null)} style={styles.swapCancel}>
-          <Text style={styles.quiet}>Cancel</Text>
+        <Text style={fieldStyles.label}>The step</Text>
+        <TextInput
+          value={askStep}
+          onChangeText={setAskStep}
+          placeholder="The next thing you would actually do"
+          placeholderTextColor={colors.mutedForeground}
+          style={fieldStyles.input}
+        />
+        <SheetActions
+          confirmLabel={todayFull ? "Swap onto Today" : "Add to Today"}
+          onCancel={() => {
+            setAsk(null);
+            setAskStep("");
+          }}
+          onConfirm={() => submitStep(false)}
+        />
+        <Pressable onPress={() => submitStep(true)} hitSlop={8} style={styles.useAim}>
+          <Text style={styles.quiet}>Put the aim on Today</Text>
         </Pressable>
       </FormModal>
 
@@ -185,8 +245,8 @@ export default function GoalsScreen() {
         heading={pending?.kind === "status" && pending.status === "reached" ? "Mark this reached?" : "Let this go?"}
         body={
           pending?.kind === "status" && pending.status === "reached"
-            ? "No deadline was waiting. You are saying this aim is complete. Any open step leaves Today."
-            : "This is not failure. The goal leaves the holding list, and any open step leaves Today."
+            ? "No deadline was waiting. You are saying this aim is complete. It does not come back. Any open step leaves Today."
+            : "This is not failure. The goal leaves the holding list and does not come back. Any open step leaves Today."
         }
         confirmLabel={pending?.kind === "status" && pending.status === "reached" ? "Mark reached" : "Let go"}
         destructive={pending?.kind === "status" && pending.status === "released"}
@@ -209,6 +269,7 @@ export default function GoalsScreen() {
           if (pending?.kind !== "delete") return;
           dispatch({ type: "delete-goal", id: pending.goal.id });
           setPending(null);
+          say("Deleted.");
         }}
       />
     </SafeAreaView>
@@ -308,31 +369,26 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     marginTop: 10,
   },
-  swapBody: {
+  askBody: {
     color: colors.mutedForeground,
     fontSize: 14,
     lineHeight: 21,
     fontFamily: fonts.regular,
-    marginBottom: 8,
-  },
-  swapOption: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-    paddingVertical: 14,
-  },
-  swapKicker: {
-    color: colors.mutedForeground,
-    fontSize: 11,
-    fontFamily: fonts.regular,
     marginBottom: 4,
   },
-  swapTitle: {
-    color: colors.foreground,
-    fontSize: 16,
-    fontFamily: fonts.medium,
+  useAim: {
+    marginTop: 8,
+    alignSelf: "flex-start",
   },
-  swapCancel: { marginTop: 16, alignSelf: "flex-end" },
   closedBlock: { marginTop: 40 },
+  closedLead: {
+    color: colors.mutedForeground,
+    fontSize: 13,
+    lineHeight: 20,
+    fontFamily: fonts.regular,
+    marginTop: 8,
+    marginBottom: 8,
+  },
   closedRow: {
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,

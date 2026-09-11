@@ -4,25 +4,36 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import ScreenHead from "@/components/ScreenHead";
+import SwapTodaySheet from "@/components/SwapTodaySheet";
 import TodaySlotSheet from "@/components/TodaySlotSheet";
 import TodayTask from "@/components/TodayTask";
 import { SectionLabel, Subtitle, Title } from "@/components/Type";
 import { colors, floatingTab, fonts } from "@/constants/theme";
 import type { Task } from "@/lib/data";
 import { completeTaskHaptic, undoTaskHaptic } from "@/lib/haptics";
-import { formatLongDate, greeting } from "@/lib/helpers";
+import { formatLongDate, greeting, todayIsFull } from "@/lib/helpers";
 import { useStore } from "@/lib/store";
 
 export default function TodayScreen() {
   const router = useRouter();
   const { state, dispatch, now } = useStore();
   const [slot, setSlot] = useState<Task | null>(null);
+  const [swapFor, setSwapFor] = useState<Task | null>(null);
   const today = [...state.tasks.filter((task) => task.today)].sort((a, b) => a.order - b.order);
   const done = today.filter((task) => task.done).length;
   const allDone = today.length > 0 && done === today.length;
+  const todayFull = todayIsFull(state.tasks);
   const waiting = [...state.tasks.filter((task) => !task.today && !task.done)].sort(
     (a, b) => a.order - b.order,
   );
+
+  function addToToday(task: Task) {
+    if (todayFull) {
+      setSwapFor(task);
+      return;
+    }
+    dispatch({ type: "bring-task-to-today", id: task.id });
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -43,8 +54,16 @@ export default function TodayScreen() {
           <View style={styles.doneBlock}>
             <Text style={styles.doneTitle}>Nothing on Today yet.</Text>
             <Text style={styles.doneNote}>
-              Add a goal, then tap Add to Today. This list stays empty until you choose three.
+              Pick a step from Goals or from Projects, then tap Add to Today. This list stays empty until you choose three.
             </Text>
+            <View style={styles.emptyLinks}>
+              <Pressable onPress={() => router.push("/(tabs)/goals")} hitSlop={8}>
+                <Text style={styles.emptyLink}>Goals</Text>
+              </Pressable>
+              <Pressable onPress={() => router.push("/(tabs)/projects")} hitSlop={8}>
+                <Text style={styles.emptyLink}>Projects</Text>
+              </Pressable>
+            </View>
           </View>
         ) : allDone ? (
           <View style={styles.doneBlock}>
@@ -66,8 +85,12 @@ export default function TodayScreen() {
                 task={task}
                 index={index}
                 goalTitle={state.goals.find((goal) => goal.id === task.goalId)?.title}
+                projectTitle={state.projects.find((project) => project.id === task.projectId)?.name}
                 onOpenSlot={() => setSlot(task)}
                 onOpenGoal={() => router.push("/(tabs)/goals")}
+                onOpenProject={() => {
+                  if (task.projectId) router.push(`/project/${task.projectId}`);
+                }}
                 onToggle={() => {
                   if (task.done) {
                     undoTaskHaptic();
@@ -85,7 +108,7 @@ export default function TodayScreen() {
         <View style={styles.nextBlock}>
           <SectionLabel>Up next</SectionLabel>
           <Text style={[styles.meta, { marginTop: 10, marginBottom: 16 }]}>
-            Not a separate list. These are steps waiting off Today — from a goal, or something you moved off today’s three.
+            Not a separate list. These are steps waiting off Today — from a goal or a project, or something you moved off today’s three.
           </Text>
           <View style={styles.line} />
           {waiting.length === 0 ? (
@@ -108,6 +131,11 @@ export default function TodayScreen() {
                   ) : (
                     <Text style={styles.from}>Parked from Today</Text>
                   )}
+                  <Pressable onPress={() => addToToday(task)} hitSlop={8}>
+                    <Text style={styles.addToday}>
+                      {todayFull ? "Add to Today — swap a slot" : "Add to Today"}
+                    </Text>
+                  </Pressable>
                 </View>
               );
             })
@@ -115,6 +143,16 @@ export default function TodayScreen() {
         </View>
       </ScrollView>
       <TodaySlotSheet task={slot} onClose={() => setSlot(null)} />
+      <SwapTodaySheet
+        open={Boolean(swapFor)}
+        incomingTitle={swapFor?.title ?? ""}
+        onClose={() => setSwapFor(null)}
+        onChoose={(outId) => {
+          if (!swapFor) return;
+          dispatch({ type: "swap-today-task", outId, inId: swapFor.id });
+          setSwapFor(null);
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -170,6 +208,17 @@ const styles = StyleSheet.create({
   doneNote: {
     color: colors.mutedForeground,
     fontSize: 14,
+    lineHeight: 21,
+    fontFamily: fonts.regular,
+  },
+  emptyLinks: {
+    flexDirection: "row",
+    gap: 20,
+    marginTop: 4,
+  },
+  emptyLink: {
+    color: colors.mutedForeground,
+    fontSize: 13,
     fontFamily: fonts.regular,
   },
   nextBlock: { marginTop: 48 },
@@ -192,5 +241,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: fonts.medium,
     marginTop: 6,
+  },
+  addToday: {
+    color: colors.mutedForeground,
+    fontSize: 13,
+    fontFamily: fonts.regular,
+    marginTop: 10,
   },
 });

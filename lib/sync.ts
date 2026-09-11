@@ -14,6 +14,17 @@ function throwIf(error: { message: string } | null) {
   if (error) throw new Error(error.message);
 }
 
+export function cloudMessage(error: unknown): string {
+  const text = error instanceof Error ? error.message : String(error ?? "");
+  if (/schema cache|Could not find the table|relation .* does not exist|PGRST205/i.test(text)) {
+    return "Cloud lists are not set up yet. This phone still has your lists.";
+  }
+  if (/Failed to fetch|Network request failed|network request|timeout|offline/i.test(text)) {
+    return "Could not reach the cloud. This phone still has your lists.";
+  }
+  return "Not saved to the cloud. This phone still has your lists.";
+}
+
 async function syncTable(
   table: "projects" | "goals" | "ideas" | "tasks",
   userId: string,

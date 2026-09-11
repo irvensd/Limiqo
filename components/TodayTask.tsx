@@ -28,10 +28,14 @@ export default function TodayTask({
   task: Task;
   index: number;
   goalTitle?: string;
+  projectTitle?: string;
   onToggle: () => void;
   onOpenSlot: () => void;
   onOpenGoal?: () => void;
+  onOpenProject?: () => void;
 }) {
+  const fromTitle = goalTitle ?? projectTitle;
+  const onOpenFrom = goalTitle ? onOpenGoal : onOpenProject;
   const progress = useSharedValue(task.done ? 1 : 0);
   const press = useSharedValue(1);
   const bounce = useSharedValue(1);
@@ -78,14 +82,14 @@ export default function TodayTask({
         <View style={styles.areaWrap}>
           <AreaDot area={task.area} />
         </View>
-        {goalTitle ? (
+        {fromTitle ? (
           <Pressable
-            onPress={onOpenGoal}
+            onPress={onOpenFrom}
             style={styles.from}
-            accessibilityLabel={`From ${goalTitle}`}
+            accessibilityLabel={`From ${fromTitle}`}
           >
             <Target size={12} color={colors.mutedForeground} />
-            <Text style={styles.fromText}>From {goalTitle}</Text>
+            <Text style={styles.fromText}>From {fromTitle}</Text>
           </Pressable>
         ) : null}
       </View>

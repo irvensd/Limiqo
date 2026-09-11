@@ -24,20 +24,8 @@ export default function TodaySlotSheet({
     [state.tasks, task?.id],
   );
 
-  const goals = useMemo(
-    () =>
-      state.goals.filter((goal) => {
-        if (goal.status !== "active") return false;
-        if (goal.id === task?.goalId) return false;
-        return !state.tasks.some(
-          (item) => item.goalId === goal.id && item.today && !item.done,
-        );
-      }),
-    [state.goals, state.tasks, task?.goalId],
-  );
-
   const open = Boolean(task);
-  const empty = waiting.length === 0 && goals.length === 0;
+  const empty = waiting.length === 0;
 
   function save() {
     if (!task || !title.trim()) return;
@@ -77,7 +65,7 @@ export default function TodaySlotSheet({
       <Text style={styles.swapLabel}>Swap with</Text>
       <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
         {empty ? (
-          <Text style={styles.empty}>Nothing waiting. Add a goal, or leave this slot.</Text>
+          <Text style={styles.empty}>Nothing waiting. Add a step from a goal or a project, or leave this slot.</Text>
         ) : null}
         {waiting.map((item) => (
           <Pressable
@@ -91,20 +79,6 @@ export default function TodaySlotSheet({
           >
             <Text style={styles.optionKicker}>Up next</Text>
             <Text style={styles.optionTitle}>{item.title}</Text>
-          </Pressable>
-        ))}
-        {goals.map((goal) => (
-          <Pressable
-            key={goal.id}
-            onPress={() => {
-              if (!task) return;
-              dispatch({ type: "swap-today-task", outId: task.id, goalId: goal.id });
-              onClose();
-            }}
-            style={styles.option}
-          >
-            <Text style={styles.optionKicker}>Goal</Text>
-            <Text style={styles.optionTitle}>{goal.title}</Text>
           </Pressable>
         ))}
       </ScrollView>

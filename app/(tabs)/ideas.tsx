@@ -1,4 +1,3 @@
-import { Clock } from "phosphor-react-native";
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -24,7 +23,7 @@ function matches(idea: Idea, tab: (typeof tabs)[number]) {
 
 export default function IdeasScreen() {
   const { state, dispatch, now } = useStore();
-  const { openIdea } = useUI();
+  const { openIdea, say } = useUI();
   const [tab, setTab] = useState<(typeof tabs)[number]>("Overview");
   const [editing, setEditing] = useState<Idea | null>(null);
   const [pending, setPending] = useState<{
@@ -46,6 +45,7 @@ export default function IdeasScreen() {
       dispatch({ type: "delete-idea", id: pending.idea.id });
     }
     setPending(null);
+    if (pending.action === "delete") say("Deleted.");
   }
 
   return (
@@ -54,7 +54,11 @@ export default function IdeasScreen() {
         <ScreenHead kicker="Space before commitment" />
         <Title>Idea Quarantine</Title>
         <Subtitle>Good ideas do not have to become commitments.</Subtitle>
-        <View style={{ height: 22 }} />
+        <View style={styles.rules}>
+          <Text style={styles.rule}>
+            Fourteen days of sitting still. That is the wait, not a lock. You can decide sooner.
+          </Text>
+        </View>
         <PrimaryButton label="Capture idea" onPress={openIdea} />
 
         <View style={styles.tabs}>
@@ -87,13 +91,12 @@ export default function IdeasScreen() {
                   <AreaDot area={idea.area} />
                   <Text style={styles.status}>{idea.status}</Text>
                 </View>
-                <View style={styles.clock}>
-                  <Clock size={14} color={colors.mutedForeground} />
-                  <Text style={styles.clockText}>
-                    {remaining > 0 ? `${remaining} days remaining` : "Ready for a decision"}
-                  </Text>
-                </View>
-                <Text style={styles.clockText}>Captured {formatShortDate(idea.capturedAt)}</Text>
+                <Text style={styles.wait}>
+                  {remaining > 0
+                    ? `${remaining} days of sitting still. You can decide anytime.`
+                    : "Ready for a decision. Nothing is required."}
+                </Text>
+                <Text style={styles.wait}>Captured {formatShortDate(idea.capturedAt)}</Text>
                 {idea.status !== "archived" ? (
                   <View style={styles.actions}>
                     <ActionChip
@@ -186,6 +189,17 @@ const styles = StyleSheet.create({
   tabText: { color: colors.mutedForeground, fontSize: 12, fontFamily: fonts.regular },
   tabTextOn: { color: colors.foreground },
   empty: { color: colors.mutedForeground, fontSize: 14, marginTop: 24, fontFamily: fonts.regular },
+  rules: {
+    marginTop: 20,
+    marginBottom: 22,
+    gap: 8,
+  },
+  rule: {
+    color: colors.mutedForeground,
+    fontSize: 13,
+    lineHeight: 20,
+    fontFamily: fonts.regular,
+  },
   row: {
     flexDirection: "row",
     gap: 16,
@@ -214,8 +228,13 @@ const styles = StyleSheet.create({
   },
   meta: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 12 },
   status: { color: colors.mutedForeground, fontSize: 12, textTransform: "capitalize", fontFamily: fonts.regular },
-  clock: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 12 },
-  clockText: { color: colors.mutedForeground, fontSize: 12, fontFamily: fonts.regular, marginTop: 4 },
+  wait: {
+    color: colors.mutedForeground,
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: fonts.regular,
+    marginTop: 8,
+  },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 16 },
   deleteText: {
     color: colors.mutedForeground,
