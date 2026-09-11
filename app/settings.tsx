@@ -1,25 +1,82 @@
-import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useRef, useState } from "react";
+import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import BackLink from "@/components/BackLink";
+import { Wordmark } from "@/components/Brand";
+import ConfirmSheet from "@/components/ConfirmSheet";
 import WeeklyReview from "@/components/WeeklyReview";
 import { Kicker, SectionLabel, Subtitle, Title } from "@/components/Type";
 import { colors, fonts } from "@/constants/theme";
-import { useRouter } from "expo-router";
+import { useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 import { useStore } from "@/lib/store";
 
 export default function SettingsScreen() {
-  const router = useRouter();
+  const { session, signOut } = useAuth();
   const { state, dispatch } = useStore();
   const [name, setName] = useState(state.user.name);
+  const [clearOpen, setClearOpen] = useState(false);
+  const nameRef = useRef<TextInput>(null);
+  const email = session?.user.email ?? "";
+
+  function saveName() {
+    const next = name.trim();
+    nameRef.current?.blur();
+    Keyboard.dismiss();
+    if (!next) return;
+    setName(next);
+    dispatch({ type: "set-name", name: next });
+    supabase.auth.updateUser({ data: { name: next } });
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <BackLink label="Today" />
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="always"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets
+      >
+        <View style={styles.top}>
+          <BackLink label="Today" style={styles.back} />
+          <Wordmark width={92} />
+        </View>
         <Kicker>Quiet controls</Kicker>
         <Title>Settings</Title>
         <Subtitle>Look back, then keep the workspace small.</Subtitle>
+
+        <View style={styles.account}>
+          <SectionLabel>Account</SectionLabel>
+          <Text style={styles.email}>{email || "Signed in"}</Text>
+          <Pressable
+            onPress={() => {
+              signOut();
+            }}
+            style={styles.signOut}
+          >
+            <Text style={styles.signOutText}>Sign out</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.rule} />
+        <Text style={styles.label}>What should we call you?</Text>
+        <View style={styles.row}>
+          <TextInput
+            ref={nameRef}
+            value={name}
+            onChangeText={setName}
+            style={styles.input}
+            placeholder="Your name"
+            placeholderTextColor={colors.mutedForeground}
+            autoCapitalize="words"
+            returnKeyType="done"
+            blurOnSubmit
+            onSubmitEditing={saveName}
+          />
+          <Pressable onPress={saveName} style={styles.save}>
+            <Text style={styles.saveText}>Save</Text>
+          </Pressable>
+        </View>
 
         <View style={styles.reviewHead}>
           <SectionLabel>Weekly review</SectionLabel>
@@ -28,39 +85,27 @@ export default function SettingsScreen() {
         <WeeklyReview />
 
         <View style={styles.rule} />
-        <Text style={styles.label}>What should we call you?</Text>
-        <View style={styles.row}>
-          <TextInput
-            value={name}
-            onChangeText={setName}
-            style={styles.input}
-            placeholderTextColor={colors.mutedForeground}
-          />
-          <Pressable
-            onPress={() => dispatch({ type: "set-name", name: name.trim() || "Irvens" })}
-            style={styles.save}
-          >
-            <Text style={styles.saveText}>Save</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.rule} />
         <Text style={styles.blockTitle}>On this device</Text>
         <Text style={styles.blockNote}>
-          Everything lives on your phone. No accounts. No feed. Capture an idea, keep the list small, and let the rest wait.
+          Lists still live on this phone. Signing out does not show them to anyone else.
         </Text>
-        <Pressable
-          onPress={() => {
-            dispatch({ type: "show-welcome" });
-            router.replace("/");
-          }}
-        >
-          <Text style={styles.reset}>Show welcome again</Text>
-        </Pressable>
-        <Pressable onPress={() => dispatch({ type: "reset" })} style={{ marginTop: 14 }}>
-          <Text style={styles.reset}>Reset demo data</Text>
+        <Pressable onPress={() => setClearOpen(true)}>
+          <Text style={styles.reset}>Clear everything</Text>
         </Pressable>
       </ScrollView>
+      <ConfirmSheet
+        open={clearOpen}
+        kicker="Settings"
+        heading="Erase everything?"
+        body="Today, goals, projects, and ideas on this phone go. Your account stays. This cannot be undone."
+        confirmLabel="Erase"
+        destructive
+        onClose={() => setClearOpen(false)}
+        onConfirm={() => {
+          dispatch({ type: "reset" });
+          setClearOpen(false);
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -68,6 +113,33 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { paddingHorizontal: 24, paddingTop: 20, paddingBottom: 48 },
+  top: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 28,
+  },
+  back: { marginBottom: 0 },
+  account: { marginTop: 32, gap: 10 },
+  email: {
+    color: colors.foreground,
+    fontSize: 16,
+    fontFamily: fonts.medium,
+  },
+  signOut: {
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    marginTop: 4,
+  },
+  signOutText: {
+    color: colors.foreground,
+    fontFamily: fonts.medium,
+    fontSize: 14,
+  },
   reviewHead: { marginTop: 36, marginBottom: 10 },
   reviewLead: {
     color: colors.mutedForeground,

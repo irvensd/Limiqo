@@ -5,8 +5,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import ActionChip from "@/components/ActionChip";
 import AreaDot from "@/components/AreaDot";
 import ConfirmSheet from "@/components/ConfirmSheet";
+import CaptureIdeaModal from "@/components/CaptureIdeaModal";
 import PrimaryButton from "@/components/PrimaryButton";
-import { Kicker, Subtitle, Title } from "@/components/Type";
+import ScreenHead from "@/components/ScreenHead";
+import { Subtitle, Title } from "@/components/Type";
 import { colors, floatingTab, fonts } from "@/constants/theme";
 import type { Idea } from "@/lib/data";
 import { daysRemaining, formatShortDate, pad } from "@/lib/helpers";
@@ -21,9 +23,10 @@ function matches(idea: Idea, tab: (typeof tabs)[number]) {
 }
 
 export default function IdeasScreen() {
-  const { state, dispatch } = useStore();
+  const { state, dispatch, now } = useStore();
   const { openIdea } = useUI();
   const [tab, setTab] = useState<(typeof tabs)[number]>("Overview");
+  const [editing, setEditing] = useState<Idea | null>(null);
   const [pending, setPending] = useState<{
     idea: Idea;
     action: "promote" | "archive" | "delete";
@@ -48,7 +51,7 @@ export default function IdeasScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Kicker>Space before commitment</Kicker>
+        <ScreenHead kicker="Space before commitment" />
         <Title>Idea Quarantine</Title>
         <Subtitle>Good ideas do not have to become commitments.</Subtitle>
         <View style={{ height: 22 }} />
@@ -73,7 +76,7 @@ export default function IdeasScreen() {
         ) : null}
 
         {visible.map((idea, index) => {
-          const remaining = daysRemaining(idea.capturedAt, state.user.quarantineDays);
+          const remaining = daysRemaining(idea.capturedAt, state.user.quarantineDays, now);
           return (
             <View key={idea.id} style={styles.row}>
               <Text style={styles.num}>{pad(index + 1)}</Text>
@@ -123,6 +126,9 @@ export default function IdeasScreen() {
                     />
                   </View>
                 )}
+                <Pressable onPress={() => setEditing(idea)} hitSlop={8}>
+                  <Text style={styles.deleteText}>Edit</Text>
+                </Pressable>
                 <Pressable onPress={() => setPending({ idea, action: "delete" })} hitSlop={8}>
                   <Text style={styles.deleteText}>Delete</Text>
                 </Pressable>
@@ -131,6 +137,7 @@ export default function IdeasScreen() {
           );
         })}
       </ScrollView>
+      <CaptureIdeaModal open={Boolean(editing)} idea={editing} onClose={() => setEditing(null)} />
       <ConfirmSheet
         open={pending?.action === "promote"}
         kicker="Space before commitment"

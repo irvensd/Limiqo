@@ -1,20 +1,41 @@
-import { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { colors, fonts } from "@/constants/theme";
-import type { Area } from "@/lib/data";
+import { useEffect, useState } from "react";
+import { Text, TextInput } from "react-native";
+import AreaChips from "@/components/AreaChips";
+import { fieldStyles, SheetActions } from "@/components/fields";
+import FormModal from "@/components/FormModal";
+import { colors } from "@/constants/theme";
+import type { Area, Idea } from "@/lib/data";
 import { useStore } from "@/lib/store";
-import AreaChips from "./AreaChips";
-import FormModal from "./FormModal";
 
-export default function CaptureIdeaModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function CaptureIdeaModal({
+  open,
+  onClose,
+  idea,
+}: {
+  open: boolean;
+  onClose: () => void;
+  idea?: Idea | null;
+}) {
   const { dispatch } = useStore();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [area, setArea] = useState<Area>("Life");
+  const editing = Boolean(idea);
+
+  useEffect(() => {
+    if (!open) return;
+    setTitle(idea?.title ?? "");
+    setDescription(idea?.description ?? "");
+    setArea(idea?.area ?? "Life");
+  }, [open, idea]);
 
   function submit() {
     if (!title.trim()) return;
-    dispatch({ type: "create-idea", title, description, area });
+    if (idea) {
+      dispatch({ type: "edit-idea", id: idea.id, title, description, area });
+    } else {
+      dispatch({ type: "create-idea", title, description, area });
+    }
     setTitle("");
     setDescription("");
     setArea("Life");
@@ -22,82 +43,36 @@ export default function CaptureIdeaModal({ open, onClose }: { open: boolean; onC
   }
 
   return (
-    <FormModal open={open} title="Space before commitment" heading="Capture idea" onClose={onClose}>
-      <Text style={styles.label}>The spark</Text>
+    <FormModal
+      open={open}
+      title="Space before commitment"
+      heading={editing ? "Edit idea" : "Capture idea"}
+      onClose={onClose}
+    >
+      <Text style={fieldStyles.label}>The spark</Text>
       <TextInput
         value={title}
         onChangeText={setTitle}
         placeholder="Name it. Do not build it yet."
         placeholderTextColor={colors.mutedForeground}
-        style={styles.input}
+        style={fieldStyles.input}
       />
-      <Text style={styles.label}>Why it arrived</Text>
+      <Text style={fieldStyles.label}>Why it arrived</Text>
       <TextInput
         value={description}
         onChangeText={setDescription}
         placeholder="Enough to remember. Not enough to commit."
         placeholderTextColor={colors.mutedForeground}
-        style={[styles.input, styles.area]}
+        style={[fieldStyles.input, fieldStyles.multiline]}
         multiline
       />
-      <Text style={styles.label}>Area</Text>
+      <Text style={fieldStyles.label}>Area</Text>
       <AreaChips value={area} onChange={setArea} />
-      <View style={styles.actions}>
-        <Pressable onPress={onClose}>
-          <Text style={styles.cancel}>Cancel</Text>
-        </Pressable>
-        <Pressable onPress={submit} style={styles.submit}>
-          <Text style={styles.submitText}>Quarantine it</Text>
-        </Pressable>
-      </View>
+      <SheetActions
+        confirmLabel={editing ? "Save" : "Quarantine it"}
+        onCancel={onClose}
+        onConfirm={submit}
+      />
     </FormModal>
   );
 }
-
-const styles = StyleSheet.create({
-  label: {
-    color: colors.mutedForeground,
-    fontSize: 12,
-    fontFamily: fonts.regular,
-    marginBottom: 8,
-    marginTop: 12,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.input,
-    color: colors.foreground,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 14,
-    fontFamily: fonts.regular,
-  },
-  area: {
-    minHeight: 84,
-    textAlignVertical: "top",
-  },
-  actions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    gap: 16,
-    marginTop: 20,
-  },
-  cancel: {
-    color: colors.mutedForeground,
-    fontSize: 14,
-    fontFamily: fonts.regular,
-  },
-  submit: {
-    backgroundColor: colors.primary,
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  submitText: {
-    color: colors.primaryForeground,
-    fontFamily: fonts.medium,
-    fontSize: 14,
-  },
-});

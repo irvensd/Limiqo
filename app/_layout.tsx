@@ -11,10 +11,12 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import AuthScreen from "@/components/AuthScreen";
 import CaptureIdeaModal from "@/components/CaptureIdeaModal";
 import CreateGoalModal from "@/components/CreateGoalModal";
 import CreateProjectModal from "@/components/CreateProjectModal";
 import { colors } from "@/constants/theme";
+import { AuthProvider, useAuth } from "@/lib/auth";
 import { StoreProvider } from "@/lib/store";
 import { UIProvider, useUI } from "@/lib/ui";
 
@@ -58,22 +60,36 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
-      <StoreProvider>
-        <UIProvider>
-          <ThemeProvider value={theme}>
-            <StatusBar style="light" />
-            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-              <Stack.Screen name="index" />
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="project/[id]" />
-              <Stack.Screen name="review" />
-              <Stack.Screen name="settings" />
-            </Stack>
-            <Modals />
-          </ThemeProvider>
-        </UIProvider>
-      </StoreProvider>
+      <AuthProvider>
+        <ThemeProvider value={theme}>
+          <StatusBar style="light" />
+          <AuthGate />
+        </ThemeProvider>
+      </AuthProvider>
     </GestureHandlerRootView>
+  );
+}
+
+function AuthGate() {
+  const { session, ready } = useAuth();
+  if (!ready) return null;
+  if (!session) return <AuthScreen />;
+
+  const meta = session.user.user_metadata;
+  const displayName = typeof meta.name === "string" ? meta.name : "";
+
+  return (
+    <StoreProvider key={session.user.id} userId={session.user.id} displayName={displayName}>
+      <UIProvider>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="project/[id]" />
+          <Stack.Screen name="settings" />
+        </Stack>
+        <Modals />
+      </UIProvider>
+    </StoreProvider>
   );
 }
 

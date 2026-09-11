@@ -4,7 +4,7 @@
     "slug": "limiqo",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/IconLogo.png",
     "scheme": "limiqo",
     "userInterfaceStyle": "dark",
     "ios": {
@@ -13,27 +13,29 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#111412",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "foregroundImage": "./assets/images/IconLogo.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+        "predictiveBackGestureEnabled": false,
+        "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/IconLogo.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/IconLogo.png",
           "resizeMode": "contain",
           "backgroundColor": "#111412"
         }
-      ]
+      ],
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true

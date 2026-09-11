@@ -5,13 +5,13 @@ import { daysRemaining } from "@/lib/helpers";
 import { useStore } from "@/lib/store";
 
 export default function WeeklyReview() {
-  const { state, dispatch } = useStore();
+  const { state, dispatch, now } = useStore();
   const doneToday = state.tasks.filter((task) => task.today && task.done).length;
   const activeProjects = state.projects.filter((project) => project.status === "active");
   const dueIdeas = state.ideas.filter(
     (idea) =>
       idea.status !== "archived" &&
-      daysRemaining(idea.capturedAt, state.user.quarantineDays) <= 3,
+      daysRemaining(idea.capturedAt, state.user.quarantineDays, now) <= 3,
   );
   const checks = [
     { key: "clearedInbox" as const, label: "Cleared the idea inbox" },

@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Gear, SunDim } from "phosphor-react-native";
+import { SunDim } from "phosphor-react-native";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import ScreenHead from "@/components/ScreenHead";
 import TodaySlotSheet from "@/components/TodaySlotSheet";
 import TodayTask from "@/components/TodayTask";
-import { Kicker, SectionLabel, Subtitle, Title } from "@/components/Type";
+import { SectionLabel, Subtitle, Title } from "@/components/Type";
 import { colors, floatingTab, fonts } from "@/constants/theme";
 import type { Task } from "@/lib/data";
 import { completeTaskHaptic, undoTaskHaptic } from "@/lib/haptics";
@@ -14,7 +15,7 @@ import { useStore } from "@/lib/store";
 
 export default function TodayScreen() {
   const router = useRouter();
-  const { state, dispatch } = useStore();
+  const { state, dispatch, now } = useStore();
   const [slot, setSlot] = useState<Task | null>(null);
   const today = [...state.tasks.filter((task) => task.today)].sort((a, b) => a.order - b.order);
   const done = today.filter((task) => task.done).length;
@@ -26,25 +27,26 @@ export default function TodayScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.top}>
-          <Kicker>Your space. Your pace.</Kicker>
-          <Pressable
-            onPress={() => router.push("/settings")}
-            hitSlop={12}
-            accessibilityLabel="Settings"
-            style={styles.settings}
-          >
-            <Gear size={20} color={colors.mutedForeground} />
-          </Pressable>
-        </View>
-        <Title>{`${greeting()}, ${state.user.name}.`}</Title>
-        <Subtitle>{formatLongDate()}</Subtitle>
+        <ScreenHead kicker="Your space. Your pace." />
+        <Title>
+          {state.user.name.trim()
+            ? `${greeting(now)}, ${state.user.name}.`
+            : `${greeting(now)}.`}
+        </Title>
+        <Subtitle>{formatLongDate(now)}</Subtitle>
         <View style={styles.insight}>
           <SunDim size={20} color={colors.primary} />
           <Text style={styles.insightText}>A little less noise. A little more intention.</Text>
         </View>
 
-        {allDone ? (
+        {today.length === 0 ? (
+          <View style={styles.doneBlock}>
+            <Text style={styles.doneTitle}>Nothing on Today yet.</Text>
+            <Text style={styles.doneNote}>
+              Add a goal, then tap Add to Today. This list stays empty until you choose three.
+            </Text>
+          </View>
+        ) : allDone ? (
           <View style={styles.doneBlock}>
             <SunDim size={28} color={colors.primary} />
             <Text style={styles.doneTitle}>That’s enough for today.</Text>
@@ -120,18 +122,6 @@ export default function TodayScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { paddingHorizontal: 24, paddingTop: 20, paddingBottom: floatingTab.clearance },
-  top: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 16,
-  },
-  settings: {
-    width: 36,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   insight: {
     flexDirection: "row",
     alignItems: "center",

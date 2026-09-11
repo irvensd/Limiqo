@@ -1,6 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { createContext, createElement, useContext, useEffect, useMemo, useReducer, useState } from "react";
-import type { Dispatch, ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useReducer, useState, type Dispatch, type ReactNode } from "react";
 import {
   createSeed,
   DEFAULT_AREAS,
@@ -10,19 +9,22 @@ import {
   type IdeaStatus,
   type ProjectStatus,
 } from "./data";
-import { uid } from "./helpers";
+import { localDateKey, uid } from "./helpers";
 import { withLinkedProgress } from "./progress";
+import { loadRemote, saveRemote } from "./sync";
+import { useNow } from "./useNow";
 
-const STORAGE_KEY = "limiqo.v1";
-const LEGACY_STORAGE_KEY = "northstar.v1";
+const STORAGE_KEY = "limiqo.v2";
 
 type Action =
   | { type: "hydrate"; payload: AppState }
   | { type: "toggle-task"; id: string }
   | { type: "create-project"; name: string; description: string; area: Area }
+  | { type: "edit-project"; id: string; name: string; description: string; area: Area }
   | { type: "create-project-task"; projectId: string; title: string }
   | { type: "set-project-status"; id: string; status: ProjectStatus }
   | { type: "create-idea"; title: string; description: string; area: Area }
+  | { type: "edit-idea"; id: string; title: string; description: string; area: Area }
   | { type: "set-idea-status"; id: string; status: IdeaStatus }
   | { type: "promote-idea"; id: string }
   | {
@@ -33,6 +35,7 @@ type Action =
       nextStep: string;
       addToToday: boolean;
     }
+  | { type: "edit-goal"; id: string; title: string; note: string; area: Area }
   | { type: "bring-goal-to-today"; id: string }
   | { type: "set-goal-status"; id: string; status: GoalStatus }
   | { type: "delete-goal"; id: string }
@@ -45,8 +48,9 @@ type Action =
   | { type: "swap-today-task"; outId: string; inId?: string; goalId?: string }
   | { type: "set-review"; key: keyof AppState["review"] }
   | { type: "set-name"; name: string }
-  | { type: "complete-onboarding" }
-  | { type: "show-welcome" }
+  | { type: "complete-onboarding"; name?: string }
+  | { type: "set-day-key"; dayKey: string }
+  | { type: "roll-day"; dayKey: string }
   | { type: "reset" };
 
 function reduce(state: AppState, action: Action): AppState {
@@ -72,7 +76,9 @@ function reduce(state: AppState, action: Action): AppState {
         user: {
           ...createSeed().user,
           ...incoming.user,
+          name: incoming.user?.name ?? "",
           onboarded: incoming.user?.onboarded ?? true,
+          dayKey: incoming.user?.dayKey ?? "",
         },
       };
     }
@@ -120,6 +126,29 @@ function reduce(state: AppState, action: Action): AppState {
           ...state.projects,
         ],
       };
+    case "edit-project": {
+      const name = action.name.trim();
+      if (!name) return state;
+      return {
+        ...state,
+        projects: state.projects.map((project) =>
+          project.id === action.id
+            ? {
+                ...project,
+                name,
+                description: action.description.trim() || project.description,
+                area: action.area,
+              }
+            : project,
+        ),
+        tasks: state.tasks.map((task) =>
+          task.projectId === action.id ? { ...task, area: action.area } : task,
+        ),
+        goals: state.goals.map((goal) =>
+          goal.projectId === action.id ? { ...goal, area: action.area } : goal,
+        ),
+      };
+    }
     case "set-project-status":
       return {
         ...state,
@@ -142,6 +171,23 @@ function reduce(state: AppState, action: Action): AppState {
           ...state.ideas,
         ],
       };
+    case "edit-idea": {
+      const title = action.title.trim();
+      if (!title) return state;
+      return {
+        ...state,
+        ideas: state.ideas.map((idea) =>
+          idea.id === action.id
+            ? {
+                ...idea,
+                title,
+                description: action.description.trim() || idea.description,
+                area: action.area,
+              }
+            : idea,
+        ),
+      };
+    }
     case "set-idea-status":
       return {
         ...state,
@@ -205,6 +251,26 @@ function reduce(state: AppState, action: Action): AppState {
               ...state.tasks,
             ]
           : state.tasks,
+      };
+    }
+    case "edit-goal": {
+      const title = action.title.trim();
+      if (!title) return state;
+      return {
+        ...state,
+        goals: state.goals.map((goal) =>
+          goal.id === action.id
+            ? {
+                ...goal,
+                title,
+                note: action.note.trim() || goal.note,
+                area: action.area,
+              }
+            : goal,
+        ),
+        tasks: state.tasks.map((task) =>
+          task.goalId === action.id ? { ...task, area: action.area } : task,
+        ),
       };
     }
     case "set-goal-status": {
@@ -379,10 +445,21 @@ function reduce(state: AppState, action: Action): AppState {
       return { ...state, review: { ...state.review, [action.key]: !state.review[action.key] } };
     case "set-name":
       return { ...state, user: { ...state.user, name: action.name } };
-    case "complete-onboarding":
-      return { ...state, user: { ...state.user, onboarded: true } };
-    case "show-welcome":
-      return { ...state, user: { ...state.user, onboarded: false } };
+    case "complete-onboarding": {
+      const name = action.name?.trim() || state.user.name.trim();
+      return { ...state, user: { ...state.user, name, onboarded: true } };
+    }
+    case "set-day-key":
+      if (state.user.dayKey === action.dayKey) return state;
+      return { ...state, user: { ...state.user, dayKey: action.dayKey } };
+    case "roll-day": {
+      if (state.user.dayKey === action.dayKey) return state;
+      return {
+        ...state,
+        user: { ...state.user, dayKey: action.dayKey },
+        tasks: state.tasks.map((task) => (task.today ? { ...task, today: false } : task)),
+      };
+    }
     case "reset": {
       const next = createSeed(state.user.name);
       return { ...next, user: { ...next.user, onboarded: true } };
@@ -402,31 +479,89 @@ const StoreContext = createContext<{
   state: AppState;
   dispatch: Dispatch<Action>;
   ready: boolean;
+  now: Date;
 } | null>(null);
 
-export function StoreProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, undefined, () => withLinkedProgress(createSeed()));
+export function StoreProvider({
+  children,
+  userId,
+  displayName = "",
+}: {
+  children: ReactNode;
+  userId: string;
+  displayName?: string;
+}) {
+  const now = useNow();
+  const [state, dispatch] = useReducer(reducer, undefined, () =>
+    withLinkedProgress(createSeed(displayName)),
+  );
   const [ready, setReady] = useState(false);
+  const storageKey = `${STORAGE_KEY}.${userId}`;
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then(async (raw) => {
-        if (!raw) {
-          raw = await AsyncStorage.getItem(LEGACY_STORAGE_KEY);
+    let cancelled = false;
+    (async () => {
+      try {
+        const [raw, remote] = await Promise.all([
+          AsyncStorage.getItem(storageKey),
+          loadRemote(userId).catch((error) => {
+            console.warn("Limiqo could not load from Supabase", error);
+            return null;
+          }),
+        ]);
+        if (cancelled) return;
+        let localDayKey = "";
+        if (raw) {
+          try {
+            localDayKey = (JSON.parse(raw) as AppState).user?.dayKey ?? "";
+          } catch {
+            localDayKey = "";
+          }
         }
-        if (raw) dispatch({ type: "hydrate", payload: JSON.parse(raw) as AppState });
-      })
-      .finally(() => setReady(true));
-  }, []);
+        if (remote) {
+          dispatch({
+            type: "hydrate",
+            payload: {
+              ...remote,
+              user: { ...remote.user, dayKey: localDayKey || remote.user.dayKey || "" },
+            },
+          });
+        } else if (raw) {
+          dispatch({ type: "hydrate", payload: JSON.parse(raw) as AppState });
+        }
+      } finally {
+        if (!cancelled) setReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [storageKey, userId]);
 
   useEffect(() => {
-    if (ready) {
-      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    if (!ready) return;
+    const today = localDateKey(now);
+    if (state.user.dayKey === today) return;
+    if (!state.user.dayKey) {
+      dispatch({ type: "set-day-key", dayKey: today });
+      return;
     }
-  }, [ready, state]);
+    dispatch({ type: "roll-day", dayKey: today });
+  }, [ready, now, state.user.dayKey]);
 
-  const value = useMemo(() => ({ state, dispatch, ready }), [state, ready]);
-  return createElement(StoreContext.Provider, { value }, children);
+  useEffect(() => {
+    if (!ready) return;
+    AsyncStorage.setItem(storageKey, JSON.stringify(state));
+    const timer = setTimeout(() => {
+      saveRemote(userId, state).catch((error) => {
+        console.warn("Limiqo could not save to Supabase", error);
+      });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [ready, state, storageKey, userId]);
+
+  const value = useMemo(() => ({ state, dispatch, ready, now }), [state, dispatch, ready, now]);
+  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 
 export function useStore() {

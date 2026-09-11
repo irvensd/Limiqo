@@ -5,9 +5,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import AreaDot from "@/components/AreaDot";
 import ConfirmSheet from "@/components/ConfirmSheet";
+import CreateProjectModal from "@/components/CreateProjectModal";
 import PrimaryButton from "@/components/PrimaryButton";
 import ProgressBar from "@/components/ProgressBar";
-import { Kicker, Subtitle, Title } from "@/components/Type";
+import ScreenHead from "@/components/ScreenHead";
+import { Subtitle, Title } from "@/components/Type";
 import { colors, floatingTab, fonts } from "@/constants/theme";
 import { pad } from "@/lib/helpers";
 import { linkedCounts } from "@/lib/progress";
@@ -28,6 +30,7 @@ export default function ProjectsScreen() {
   const router = useRouter();
   const [tab, setTab] = useState<(typeof tabs)[number]>("Overview");
   const [pending, setPending] = useState<Project | null>(null);
+  const [editing, setEditing] = useState<Project | null>(null);
   const visible = useMemo(
     () => state.projects.filter((project) => matches(project, tab)),
     [state.projects, tab],
@@ -37,7 +40,7 @@ export default function ProjectsScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Kicker>Less, but better</Kicker>
+        <ScreenHead kicker="Less, but better" />
         <Title>Projects</Title>
         <Subtitle>Keep the active list small. Give your best work room.</Subtitle>
         <View style={{ height: 22 }} />
@@ -101,6 +104,9 @@ export default function ProjectsScreen() {
                   <ArrowUpRight size={14} color={colors.mutedForeground} />
                 </Pressable>
               ) : null}
+              <Pressable onPress={() => setEditing(project)} hitSlop={8} style={styles.delete}>
+                <Text style={styles.deleteText}>Edit</Text>
+              </Pressable>
               <Pressable onPress={() => setPending(project)} hitSlop={8} style={styles.delete}>
                 <Text style={styles.deleteText}>Delete</Text>
               </Pressable>
@@ -109,6 +115,7 @@ export default function ProjectsScreen() {
           );
         })}
       </ScrollView>
+      <CreateProjectModal open={Boolean(editing)} project={editing} onClose={() => setEditing(null)} />
       <ConfirmSheet
         open={Boolean(pending)}
         kicker="Projects"

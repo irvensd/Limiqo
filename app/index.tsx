@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { Redirect, useRouter } from "expo-router";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Wordmark } from "@/components/Brand";
 import { colors, fonts } from "@/constants/theme";
+import { supabase } from "@/lib/supabase";
 import { useStore } from "@/lib/store";
 
 const lines = [
@@ -22,6 +25,7 @@ const lines = [
 export default function WelcomeScreen() {
   const router = useRouter();
   const { state, dispatch, ready } = useStore();
+  const [name, setName] = useState(state.user.name);
 
   if (!ready) return null;
   if (state.user.onboarded) {
@@ -29,50 +33,71 @@ export default function WelcomeScreen() {
   }
 
   function enter() {
-    dispatch({ type: "complete-onboarding" });
+    const next = name.trim();
+    if (!next) return;
+    dispatch({ type: "complete-onboarding", name: next });
+    supabase.auth.updateUser({ data: { name: next } });
     router.replace("/(tabs)/today");
   }
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
-      <View style={styles.page}>
-        <Text style={styles.kicker}>Limiqo</Text>
-        <Text style={styles.headline}>Three things.{"\n"}Then stop.</Text>
-        <Text style={styles.lede}>A brake for your day. Not another planner that asks for more.</Text>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.page}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Wordmark width={156} />
 
-        <View style={styles.rules}>
-          {lines.map((item) => (
-            <View key={item.title} style={styles.rule}>
-              <Text style={styles.ruleTitle}>{item.title}</Text>
-              <Text style={styles.ruleBody}>{item.body}</Text>
+          <View style={styles.body}>
+            <Text style={styles.headline}>Three things.{"\n"}Then stop.</Text>
+            <Text style={styles.lede}>A brake for your day. Not another planner that asks for more.</Text>
+            <View style={styles.rules}>
+              {lines.map((item) => (
+                <View key={item.title} style={styles.rule}>
+                  <Text style={styles.ruleTitle}>{item.title}</Text>
+                  <Text style={styles.ruleBody}>{item.body}</Text>
+                </View>
+              ))}
             </View>
-          ))}
-        </View>
+            <Text style={styles.nameLabel}>What should we call you?</Text>
+            <TextInput
+              value={name}
+              onChangeText={setName}
+              placeholder="Your name"
+              placeholderTextColor={colors.mutedForeground}
+              style={styles.nameInput}
+              autoCapitalize="words"
+              returnKeyType="done"
+              onSubmitEditing={enter}
+            />
+          </View>
 
-        <Pressable onPress={enter} style={styles.cta}>
-          <Text style={styles.ctaText}>Begin</Text>
-        </Pressable>
-      </View>
+          <Pressable onPress={enter} style={[styles.cta, !name.trim() && styles.ctaOff]}>
+            <Text style={styles.ctaText}>Begin</Text>
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
+  flex: { flex: 1 },
   page: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: 28,
-    paddingTop: 36,
+    paddingTop: 12,
     paddingBottom: 24,
-    justifyContent: "center",
   },
-  kicker: {
-    color: colors.mutedForeground,
-    fontSize: 12,
-    fontFamily: fonts.semibold,
-    letterSpacing: 2.4,
-    textTransform: "uppercase",
-    marginBottom: 18,
+  body: {
+    flex: 1,
+    justifyContent: "center",
   },
   headline: {
     color: colors.foreground,
@@ -89,7 +114,24 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     marginBottom: 36,
   },
-  rules: { gap: 22, marginBottom: 40 },
+  rules: { gap: 22, marginBottom: 28 },
+  nameLabel: {
+    color: colors.mutedForeground,
+    fontSize: 13,
+    fontFamily: fonts.regular,
+    marginBottom: 8,
+  },
+  nameInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.input,
+    color: colors.foreground,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 16,
+    fontFamily: fonts.regular,
+  },
   rule: { gap: 6 },
   ruleTitle: {
     color: colors.foreground,
@@ -109,6 +151,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 13,
   },
+  ctaOff: { opacity: 0.4 },
   ctaText: {
     color: colors.primaryForeground,
     fontFamily: fonts.medium,

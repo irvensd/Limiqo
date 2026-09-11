@@ -1,8 +1,8 @@
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View, type StyleProp, type TextStyle } from "react-native";
 import { colors, fonts } from "@/constants/theme";
 
-export function Kicker({ children }: { children: string }) {
-  return <Text style={styles.kicker}>{children}</Text>;
+export function Kicker({ children, style }: { children: string; style?: StyleProp<TextStyle> }) {
+  return <Text style={[styles.kicker, style]}>{children}</Text>;
 }
 
 export function Title({ children }: { children: string }) {

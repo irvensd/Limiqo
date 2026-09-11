@@ -1,13 +1,17 @@
 import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
 import {
-  KeyboardAvoidingView,
+  Keyboard,
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, fonts } from "@/constants/theme";
 
 export default function FormModal({
@@ -23,28 +27,69 @@ export default function FormModal({
   children: ReactNode;
   onClose: () => void;
 }) {
+  const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
+  const [keyboard, setKeyboard] = useState(0);
+
+  useEffect(() => {
+    if (!open) {
+      setKeyboard(0);
+      return;
+    }
+    const show = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      (event) => setKeyboard(event.endCoordinates.height),
+    );
+    const hide = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setKeyboard(0),
+    );
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [open]);
+
+  const rest = keyboard > 0 ? 12 : Math.max(insets.bottom, 16);
+  const maxHeight = Math.max(240, height - keyboard - 20);
+
   return (
-    <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={styles.wrap}
-      >
+    <Modal
+      visible={open}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <View style={styles.overlay}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View style={styles.sheet}>
-          <Text style={styles.kicker}>{title}</Text>
-          <Text style={styles.heading}>{heading}</Text>
-          {children}
+        <View style={[styles.lift, { paddingBottom: keyboard }]}>
+          <View style={[styles.sheet, { maxHeight, paddingBottom: rest }]}>
+            <Text style={styles.kicker}>{title}</Text>
+            <Text style={styles.heading}>{heading}</Text>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+            >
+              {children}
+            </ScrollView>
+          </View>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: {
+  overlay: {
     flex: 1,
     justifyContent: "flex-end",
     backgroundColor: colors.overlay,
+  },
+  lift: {
+    width: "100%",
   },
   sheet: {
     backgroundColor: colors.popover,
@@ -52,8 +97,8 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    padding: 24,
-    paddingBottom: 36,
+    paddingHorizontal: 24,
+    paddingTop: 24,
   },
   kicker: {
     color: colors.mutedForeground,

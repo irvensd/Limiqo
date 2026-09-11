@@ -84,7 +84,6 @@ export default function TabLayout() {
           ),
         }}
       />
-      <Tabs.Screen name="more" options={{ href: null }} />
     </Tabs>
   );
 }

@@ -1,20 +1,41 @@
-import { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { colors, fonts } from "@/constants/theme";
-import type { Area } from "@/lib/data";
+import { useEffect, useState } from "react";
+import { Text, TextInput } from "react-native";
+import AreaChips from "@/components/AreaChips";
+import { fieldStyles, SheetActions } from "@/components/fields";
+import FormModal from "@/components/FormModal";
+import { colors } from "@/constants/theme";
+import type { Area, Project } from "@/lib/data";
 import { useStore } from "@/lib/store";
-import AreaChips from "./AreaChips";
-import FormModal from "./FormModal";
 
-export default function CreateProjectModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function CreateProjectModal({
+  open,
+  onClose,
+  project,
+}: {
+  open: boolean;
+  onClose: () => void;
+  project?: Project | null;
+}) {
   const { dispatch } = useStore();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [area, setArea] = useState<Area>("Product");
+  const editing = Boolean(project);
+
+  useEffect(() => {
+    if (!open) return;
+    setName(project?.name ?? "");
+    setDescription(project?.description ?? "");
+    setArea(project?.area ?? "Product");
+  }, [open, project]);
 
   function submit() {
     if (!name.trim()) return;
-    dispatch({ type: "create-project", name, description, area });
+    if (project) {
+      dispatch({ type: "edit-project", id: project.id, name, description, area });
+    } else {
+      dispatch({ type: "create-project", name, description, area });
+    }
     setName("");
     setDescription("");
     setArea("Product");
@@ -22,82 +43,36 @@ export default function CreateProjectModal({ open, onClose }: { open: boolean; o
   }
 
   return (
-    <FormModal open={open} title="Less, but better" heading="Create project" onClose={onClose}>
-      <Text style={styles.label}>Name</Text>
+    <FormModal
+      open={open}
+      title="Less, but better"
+      heading={editing ? "Edit project" : "Create project"}
+      onClose={onClose}
+    >
+      <Text style={fieldStyles.label}>Name</Text>
       <TextInput
         value={name}
         onChangeText={setName}
         placeholder="What deserves a name?"
         placeholderTextColor={colors.mutedForeground}
-        style={styles.input}
+        style={fieldStyles.input}
       />
-      <Text style={styles.label}>Why it exists</Text>
+      <Text style={fieldStyles.label}>Why it exists</Text>
       <TextInput
         value={description}
         onChangeText={setDescription}
         placeholder="One sentence. Then stop."
         placeholderTextColor={colors.mutedForeground}
-        style={[styles.input, styles.area]}
+        style={[fieldStyles.input, fieldStyles.multiline]}
         multiline
       />
-      <Text style={styles.label}>Area</Text>
+      <Text style={fieldStyles.label}>Area</Text>
       <AreaChips value={area} onChange={setArea} />
-      <View style={styles.actions}>
-        <Pressable onPress={onClose}>
-          <Text style={styles.cancel}>Cancel</Text>
-        </Pressable>
-        <Pressable onPress={submit} style={styles.submit}>
-          <Text style={styles.submitText}>Create project</Text>
-        </Pressable>
-      </View>
+      <SheetActions
+        confirmLabel={editing ? "Save" : "Create project"}
+        onCancel={onClose}
+        onConfirm={submit}
+      />
     </FormModal>
   );
 }
-
-const styles = StyleSheet.create({
-  label: {
-    color: colors.mutedForeground,
-    fontSize: 12,
-    fontFamily: fonts.regular,
-    marginBottom: 8,
-    marginTop: 12,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.input,
-    color: colors.foreground,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 14,
-    fontFamily: fonts.regular,
-  },
-  area: {
-    minHeight: 84,
-    textAlignVertical: "top",
-  },
-  actions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    gap: 16,
-    marginTop: 20,
-  },
-  cancel: {
-    color: colors.mutedForeground,
-    fontSize: 14,
-    fontFamily: fonts.regular,
-  },
-  submit: {
-    backgroundColor: colors.primary,
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  submitText: {
-    color: colors.primaryForeground,
-    fontFamily: fonts.medium,
-    fontSize: 14,
-  },
-});

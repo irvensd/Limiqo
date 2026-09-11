@@ -5,10 +5,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import AreaDot from "@/components/AreaDot";
 import ConfirmSheet from "@/components/ConfirmSheet";
+import CreateGoalModal from "@/components/CreateGoalModal";
 import FormModal from "@/components/FormModal";
 import PrimaryButton from "@/components/PrimaryButton";
 import ProgressBar from "@/components/ProgressBar";
-import { Kicker, SectionLabel, Subtitle, Title } from "@/components/Type";
+import ScreenHead from "@/components/ScreenHead";
+import { SectionLabel, Subtitle, Title } from "@/components/Type";
 import { colors, floatingTab, fonts } from "@/constants/theme";
 import type { Goal, GoalStatus } from "@/lib/data";
 import { pad } from "@/lib/helpers";
@@ -30,6 +32,7 @@ export default function GoalsScreen() {
     | null
   >(null);
   const [swapFor, setSwapFor] = useState<Goal | null>(null);
+  const [editing, setEditing] = useState<Goal | null>(null);
 
   function addToToday(goal: Goal) {
     if (todayFull) {
@@ -42,7 +45,7 @@ export default function GoalsScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Kicker>Hold the line</Kicker>
+        <ScreenHead kicker="Hold the line" />
         <Title>Goals</Title>
         <Subtitle>Aims you hold on purpose. Not a schedule.</Subtitle>
         <View style={styles.rules}>
@@ -52,6 +55,9 @@ export default function GoalsScreen() {
           </Text>
         </View>
         <PrimaryButton label="Add a goal" onPress={openGoal} />
+        {holding.length === 0 ? (
+          <Text style={styles.empty}>No goals yet. Add one when you know what you are aiming at.</Text>
+        ) : null}
 
         {holding.map((goal, index) => {
           const todayTask = state.tasks.find(
@@ -106,6 +112,9 @@ export default function GoalsScreen() {
                   </Text>
                 </View>
                 <View style={styles.quietActions}>
+                  <Pressable onPress={() => setEditing(goal)} hitSlop={8}>
+                    <Text style={styles.quiet}>Edit</Text>
+                  </Pressable>
                   <Pressable onPress={() => setPending({ kind: "status", goal, status: "reached" })} hitSlop={8}>
                     <Text style={styles.quiet}>Mark reached</Text>
                   </Pressable>
@@ -141,6 +150,7 @@ export default function GoalsScreen() {
         ) : null}
       </ScrollView>
 
+      <CreateGoalModal open={Boolean(editing)} goal={editing} onClose={() => setEditing(null)} />
       <FormModal
         open={Boolean(swapFor)}
         title="Today’s three"
@@ -208,6 +218,13 @@ export default function GoalsScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { paddingHorizontal: 24, paddingTop: 20, paddingBottom: floatingTab.clearance },
+  empty: {
+    color: colors.mutedForeground,
+    fontSize: 14,
+    lineHeight: 21,
+    fontFamily: fonts.regular,
+    marginTop: 20,
+  },
   rules: {
     marginTop: 20,
     marginBottom: 22,

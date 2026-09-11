@@ -5,6 +5,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import AreaDot from "@/components/AreaDot";
 import BackLink from "@/components/BackLink";
 import ConfirmSheet from "@/components/ConfirmSheet";
+import CreateProjectModal from "@/components/CreateProjectModal";
+import SettingsButton from "@/components/SettingsButton";
 import ProgressBar from "@/components/ProgressBar";
 import { Kicker, SectionLabel, Subtitle, Title } from "@/components/Type";
 import { colors, fonts } from "@/constants/theme";
@@ -19,6 +21,7 @@ export default function ProjectDetailScreen() {
   const router = useRouter();
   const { state, dispatch } = useStore();
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [step, setStep] = useState("");
   const project = state.projects.find((item) => item.id === id);
   const tasks = state.tasks.filter((task) => task.projectId === id);
@@ -27,7 +30,10 @@ export default function ProjectDetailScreen() {
   if (!project) {
     return (
       <SafeAreaView style={styles.safe} edges={["top"]}>
-        <BackLink label="All projects" />
+        <View style={[styles.top, styles.topPad]}>
+          <BackLink label="All projects" style={styles.back} />
+          <SettingsButton />
+        </View>
         <Text style={styles.missing}>This project is no longer here.</Text>
       </SafeAreaView>
     );
@@ -35,8 +41,16 @@ export default function ProjectDetailScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <BackLink label="All projects" />
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets
+      >
+        <View style={styles.top}>
+          <BackLink label="All projects" style={styles.back} />
+          <SettingsButton />
+        </View>
         <Kicker>One thing at a time</Kicker>
         <Title>{project.name}</Title>
         <Subtitle>{project.description}</Subtitle>
@@ -63,6 +77,9 @@ export default function ProjectDetailScreen() {
             </Pressable>
           ))}
         </View>
+        <Pressable onPress={() => setEditing(true)} hitSlop={8} style={styles.delete}>
+          <Text style={styles.deleteText}>Edit</Text>
+        </Pressable>
         <Pressable onPress={() => setDeleteOpen(true)} hitSlop={8} style={styles.delete}>
           <Text style={styles.deleteText}>Delete</Text>
         </Pressable>
@@ -113,6 +130,11 @@ export default function ProjectDetailScreen() {
           </Pressable>
         </View>
       </ScrollView>
+      <CreateProjectModal
+        open={editing}
+        project={project}
+        onClose={() => setEditing(false)}
+      />
       <ConfirmSheet
         open={deleteOpen}
         kicker="Projects"
@@ -134,6 +156,14 @@ export default function ProjectDetailScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { paddingHorizontal: 24, paddingTop: 20, paddingBottom: 48 },
+  top: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 28,
+  },
+  topPad: { paddingHorizontal: 24, paddingTop: 20 },
+  back: { marginBottom: 0 },
   missing: {
     color: colors.mutedForeground,
     padding: 24,
