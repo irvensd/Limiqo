@@ -17,7 +17,7 @@ export default function QuietNotice() {
 
   return (
     <View pointerEvents="none" style={[styles.wrap, { bottom }]}>
-      <Text style={styles.line}>{notice}</Text>
+      <Text accessibilityLiveRegion="polite" style={styles.line}>{notice}</Text>
     </View>
   );
 }
@@ -27,9 +27,15 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 24,
     right: 24,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    backgroundColor: colors.popover,
   },
   line: {
-    color: colors.mutedForeground,
+    color: colors.foreground,
     fontSize: 13,
     lineHeight: 20,
     fontFamily: fonts.regular,

@@ -49,6 +49,11 @@ export default function ProjectDetailScreen() {
     dispatch({ type: "bring-task-to-today", id: task.id });
   }
 
+  function toggleStep(task: Task) {
+    dispatch({ type: "toggle-task", id: task.id });
+    if (task.done && task.today && todayFull) say("Today is full. Step reopened in Up next.");
+  }
+
   if (!project) {
     return (
       <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -131,12 +136,12 @@ export default function ProjectDetailScreen() {
           tasks.map((task) => (
             <View key={task.id} style={styles.row}>
               <View style={styles.rowMain}>
-                <Pressable onPress={() => dispatch({ type: "toggle-task", id: task.id })}>
+                <View>
                   <Text style={[styles.task, task.done && styles.done]}>{task.title}</Text>
                   <Text style={styles.hint}>
-                    {task.today ? "On today’s three" : "Waiting in Up next"}
+                    {task.done ? "Complete" : task.today ? "On Today" : "Waiting in Up next"}
                   </Text>
-                </Pressable>
+                </View>
                 {!task.done && !task.today ? (
                   <Pressable onPress={() => addToToday(task)} hitSlop={8} style={styles.addToday}>
                     <Text style={styles.addTodayText}>
@@ -159,7 +164,12 @@ export default function ProjectDetailScreen() {
                   </Pressable>
                 </View>
               </View>
-              <Pressable onPress={() => dispatch({ type: "toggle-task", id: task.id })} hitSlop={8}>
+              <Pressable
+                onPress={() => toggleStep(task)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={task.done ? `Mark ${task.title} incomplete` : `Complete ${task.title}`}
+              >
                 <View style={[styles.check, task.done && styles.checkOn]} />
               </Pressable>
             </View>

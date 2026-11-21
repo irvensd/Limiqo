@@ -40,7 +40,7 @@ export default function TodaySlotSheet({
   }
 
   return (
-    <FormModal open={open} title="Today’s three" heading="Edit this slot" onClose={onClose}>
+    <FormModal open={open} title="Today" heading="Edit this step" onClose={onClose}>
       <Text style={styles.label}>The step</Text>
       <TextInput
         value={title}
@@ -58,30 +58,32 @@ export default function TodaySlotSheet({
         </Pressable>
       </View>
 
-      <Pressable onPress={park} style={styles.park}>
-        <Text style={styles.quiet}>Move to Up next</Text>
-      </Pressable>
-
-      <Text style={styles.swapLabel}>Swap with</Text>
-      <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
-        {empty ? (
-          <Text style={styles.empty}>Nothing waiting. Add a step from a goal or a project, or leave this slot.</Text>
-        ) : null}
-        {waiting.map((item) => (
-          <Pressable
-            key={item.id}
-            onPress={() => {
-              if (!task) return;
-              dispatch({ type: "swap-today-task", outId: task.id, inId: item.id });
-              onClose();
-            }}
-            style={styles.option}
-          >
-            <Text style={styles.optionKicker}>Up next</Text>
-            <Text style={styles.optionTitle}>{item.title}</Text>
+      {task && !task.done ? (
+        <>
+          <Pressable onPress={park} style={styles.park}>
+            <Text style={styles.quiet}>Move to Up next</Text>
           </Pressable>
-        ))}
-      </ScrollView>
+
+          <Text style={styles.swapLabel}>Swap with</Text>
+          <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
+            {empty ? (
+              <Text style={styles.empty}>Nothing waiting. Add a step from a goal or a project, or leave this slot.</Text>
+            ) : null}
+            {waiting.map((item) => (
+              <Pressable
+                key={item.id}
+                onPress={() => {
+                  dispatch({ type: "swap-today-task", outId: task.id, inId: item.id });
+                  onClose();
+                }}
+                style={styles.option}
+              >
+                <Text style={styles.optionTitle}>{item.title}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </>
+      ) : null}
     </FormModal>
   );
 }
@@ -153,12 +155,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
     paddingVertical: 14,
-  },
-  optionKicker: {
-    color: colors.mutedForeground,
-    fontSize: 11,
-    fontFamily: fonts.regular,
-    marginBottom: 4,
   },
   optionTitle: {
     color: colors.foreground,

@@ -20,7 +20,7 @@ import {
   type IdeaStatus,
   type ProjectStatus,
 } from "./data";
-import { localDateKey, openTodayCount, uid } from "./helpers";
+import { localDateKey, todayIsFull, uid } from "./helpers";
 import { withLinkedProgress } from "./progress";
 import { cloudMessage, loadRemote, saveRemote } from "./sync";
 
@@ -66,7 +66,8 @@ type Action =
   | { type: "delete-area"; name: string }
   | { type: "edit-today-task"; id: string; title: string }
   | { type: "park-today-task"; id: string }
-  | { type: "swap-today-task"; outId: string; inId?: string; goalId?: string; step?: string }
+  | { type: "swap-today-task"; outId: string; inId: string }
+  | { type: "swap-today-task"; outId: string; goalId: string; step?: string }
   | { type: "set-review"; key: keyof AppState["review"] }
   | { type: "set-name"; name: string }
   | { type: "complete-onboarding"; name?: string }
@@ -103,13 +104,17 @@ function reduce(state: AppState, action: Action): AppState {
         },
       };
     }
-    case "toggle-task":
+    case "toggle-task": {
+      const full = todayIsFull(state.tasks);
       return {
         ...state,
         tasks: state.tasks.map((task) =>
-          task.id === action.id ? { ...task, done: !task.done } : task,
+          task.id === action.id
+            ? { ...task, done: !task.done, today: task.today && !(task.done && full) }
+            : task,
         ),
       };
+    }
     case "create-project-task": {
       const project = state.projects.find((item) => item.id === action.projectId);
       const title = action.title.trim();
@@ -386,8 +391,7 @@ function reduce(state: AppState, action: Action): AppState {
     case "bring-goal-to-today": {
       const goal = state.goals.find((item) => item.id === action.id);
       if (!goal || goal.status !== "active") return state;
-      const todayCount = openTodayCount(state.tasks);
-      if (todayCount >= 3) return state;
+      if (todayIsFull(state.tasks)) return state;
       const existing = state.tasks.find(
         (task) => task.goalId === goal.id && !task.done && !task.today,
       );
@@ -426,8 +430,7 @@ function reduce(state: AppState, action: Action): AppState {
     case "bring-task-to-today": {
       const target = state.tasks.find((task) => task.id === action.id);
       if (!target || target.done || target.today) return state;
-      const todayCount = openTodayCount(state.tasks);
-      if (todayCount >= 3) return state;
+      if (todayIsFull(state.tasks)) return state;
       return {
         ...state,
         tasks: state.tasks.map((task) =>
@@ -439,56 +442,32 @@ function reduce(state: AppState, action: Action): AppState {
       return {
         ...state,
         tasks: state.tasks.map((task) =>
-          task.id === action.id ? { ...task, today: false } : task,
+          task.id === action.id && !task.done ? { ...task, today: false } : task,
         ),
       };
     case "swap-today-task": {
-      const parked = state.tasks.map((task) =>
-        task.id === action.outId ? { ...task, today: false } : task,
-      );
-      if (action.inId) {
-        return {
-          ...state,
-          tasks: parked.map((task) =>
-            task.id === action.inId ? { ...task, today: true, done: false } : task,
-          ),
-        };
+      const outgoing = state.tasks.find((task) => task.id === action.outId);
+      if (!outgoing?.today || outgoing.done) return state;
+
+      const afterParking = {
+        ...state,
+        tasks: state.tasks.map((task) =>
+          task.id === action.outId ? { ...task, today: false } : task,
+        ),
+      };
+      if ("inId" in action) {
+        if (action.inId === outgoing.id) return state;
+        const next = reduce(afterParking, { type: "bring-task-to-today", id: action.inId });
+        return next === afterParking ? state : next;
       }
-      if (action.goalId) {
-        const goal = state.goals.find((item) => item.id === action.goalId);
-        if (!goal || goal.status !== "active") return { ...state, tasks: parked };
-        const existing = parked.find(
-          (task) => task.goalId === goal.id && !task.done && !task.today,
-        );
-        if (existing) {
-          return {
-            ...state,
-            tasks: parked.map((task) =>
-              task.id === existing.id ? { ...task, today: true } : task,
-            ),
-          };
-        }
-        const step = action.step?.trim();
-        if (!step) return { ...state, tasks: parked };
-        const nextOrder = parked.reduce((max, task) => Math.max(max, task.order), 0) + 1;
-        return {
-          ...state,
-          tasks: [
-            {
-              id: uid("t"),
-              title: step,
-              area: goal.area,
-              projectId: goal.projectId,
-              goalId: goal.id,
-              done: false,
-              today: true,
-              order: nextOrder,
-            },
-            ...parked,
-          ],
-        };
-      }
-      return { ...state, tasks: parked };
+
+      if (outgoing.goalId === action.goalId) return state;
+      const next = reduce(afterParking, {
+        type: "bring-goal-to-today",
+        id: action.goalId,
+        step: action.step,
+      });
+      return next === afterParking ? state : next;
     }
     case "set-review":
       return { ...state, review: { ...state.review, [action.key]: !state.review[action.key] } };

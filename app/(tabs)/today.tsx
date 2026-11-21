@@ -13,10 +13,12 @@ import type { Task } from "@/lib/data";
 import { completeTaskHaptic, undoTaskHaptic } from "@/lib/haptics";
 import { formatLongDate, greeting, todayIsFull } from "@/lib/helpers";
 import { useStore } from "@/lib/store";
+import { useUI } from "@/lib/ui";
 
 export default function TodayScreen() {
   const router = useRouter();
   const { state, dispatch, now } = useStore();
+  const { say } = useUI();
   const [slot, setSlot] = useState<Task | null>(null);
   const [swapFor, setSwapFor] = useState<Task | null>(null);
   const today = [...state.tasks.filter((task) => task.today)].sort((a, b) => a.order - b.order);
@@ -78,7 +80,7 @@ export default function TodayScreen() {
         {today.length > 0 ? (
           <>
             <View style={styles.sectionHead}>
-              <SectionLabel>Today’s three</SectionLabel>
+              <SectionLabel>Today’s steps</SectionLabel>
               <Text style={styles.meta}>
                 {done} of {today.length} complete
               </Text>
@@ -98,6 +100,7 @@ export default function TodayScreen() {
                 onToggle={() => {
                   if (task.done) {
                     undoTaskHaptic();
+                    if (todayFull) say("Today is full. Step reopened in Up next.");
                   } else {
                     completeTaskHaptic(done === today.length - 1);
                   }

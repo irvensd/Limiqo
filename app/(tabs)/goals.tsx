@@ -199,9 +199,9 @@ export default function GoalsScreen() {
           dispatch({
             type: "swap-today-task",
             outId,
-            inId: swapFor.inId,
-            goalId: swapFor.inId ? undefined : swapFor.goal.id,
-            step: swapFor.step,
+            ...(swapFor.inId
+              ? { inId: swapFor.inId }
+              : { goalId: swapFor.goal.id, step: swapFor.step }),
           });
           setSwapFor(null);
         }}
