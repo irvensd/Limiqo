@@ -1,5 +1,5 @@
 import { createSeed, DEFAULT_AREAS, type AppState } from "./data";
-import { supabase } from "./supabase";
+import { getSupabase } from "./supabase";
 
 type ProfileRow = {
   name: string;
@@ -30,6 +30,7 @@ async function syncTable(
   userId: string,
   rows: Record<string, unknown>[],
 ) {
+  const supabase = getSupabase();
   if (rows.length > 0) {
     const { error } = await supabase.from(table).upsert(rows);
     throwIf(error);
@@ -45,6 +46,7 @@ async function syncTable(
 }
 
 export async function loadRemote(userId: string): Promise<AppState | null> {
+  const supabase = getSupabase();
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select(
@@ -129,6 +131,7 @@ export async function loadRemote(userId: string): Promise<AppState | null> {
 }
 
 export async function saveRemote(userId: string, state: AppState) {
+  const supabase = getSupabase();
   const { error: profileError } = await supabase.from("profiles").upsert({
     id: userId,
     name: state.user.name,

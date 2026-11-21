@@ -54,7 +54,7 @@ export default function TodayScreen() {
           <View style={styles.doneBlock}>
             <Text style={styles.doneTitle}>Nothing on Today yet.</Text>
             <Text style={styles.doneNote}>
-              Pick a step from Goals or from Projects, then tap Add to Today. This list stays empty until you choose three.
+              Pick a step from Goals or Projects and tap Add to Today. You can have up to three unfinished steps here.
             </Text>
             <View style={styles.emptyLinks}>
               <Pressable onPress={() => router.push("/(tabs)/goals")} hitSlop={8}>
@@ -65,13 +65,17 @@ export default function TodayScreen() {
               </Pressable>
             </View>
           </View>
-        ) : allDone ? (
-          <View style={styles.doneBlock}>
+        ) : null}
+
+        {allDone ? (
+          <View style={[styles.doneBlock, styles.completionBlock]}>
             <SunDim size={28} color={colors.primary} />
             <Text style={styles.doneTitle}>That’s enough for today.</Text>
             <Text style={styles.doneNote}>Protect the rest of the evening.</Text>
           </View>
-        ) : (
+        ) : null}
+
+        {today.length > 0 ? (
           <>
             <View style={styles.sectionHead}>
               <SectionLabel>Today’s three</SectionLabel>
@@ -101,9 +105,9 @@ export default function TodayScreen() {
                 }}
               />
             ))}
-            <Text style={styles.footer}>Three priorities. Enough to move forward.</Text>
+            {allDone ? null : <Text style={styles.footer}>Three priorities. Enough to move forward.</Text>}
           </>
-        )}
+        ) : null}
 
         <View style={styles.nextBlock}>
           <SectionLabel>Up next</SectionLabel>
@@ -199,6 +203,7 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
     gap: 12,
   },
+  completionBlock: { marginBottom: 24 },
   doneTitle: {
     color: colors.foreground,
     fontSize: 22,

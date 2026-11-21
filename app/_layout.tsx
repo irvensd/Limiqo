@@ -10,15 +10,20 @@ import { DarkTheme, Stack, ThemeProvider } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, type ReactNode } from "react";
+import { ScrollView, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaView } from "react-native-safe-area-context";
 import AuthScreen from "@/components/AuthScreen";
+import { Wordmark } from "@/components/Brand";
 import CaptureIdeaModal from "@/components/CaptureIdeaModal";
 import CreateGoalModal from "@/components/CreateGoalModal";
 import CreateProjectModal from "@/components/CreateProjectModal";
 import QuietNotice from "@/components/QuietNotice";
+import { Subtitle, Title } from "@/components/Type";
 import { colors } from "@/constants/theme";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { StoreProvider, useStore } from "@/lib/store";
+import { isSupabaseConfigured } from "@/lib/supabase";
 import { UIProvider, useUI } from "@/lib/ui";
 
 export { ErrorBoundary } from "expo-router";
@@ -57,12 +62,26 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
-      <AuthProvider>
-        <ThemeProvider value={theme}>
-          <StatusBar style="light" />
-          <AuthGate />
-        </ThemeProvider>
-      </AuthProvider>
+      <ThemeProvider value={theme}>
+        <StatusBar style="light" />
+        {isSupabaseConfigured ? (
+          <AuthProvider>
+            <AuthGate />
+          </AuthProvider>
+        ) : (
+          <RevealSplash>
+            <SafeAreaView style={styles.setupScreen}>
+              <ScrollView contentContainerStyle={styles.setupContent}>
+                <Wordmark width={156} style={styles.setupWordmark} />
+                <Title>Setup required.</Title>
+                <Subtitle>
+                  Limiqo needs a Supabase project URL and publishable key. For local development, copy .env.example to .env.local, fill in both values, then restart Expo.
+                </Subtitle>
+              </ScrollView>
+            </SafeAreaView>
+          </RevealSplash>
+        )}
+      </ThemeProvider>
     </GestureHandlerRootView>
   );
 }
@@ -126,3 +145,9 @@ function Modals() {
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  setupScreen: { flex: 1 },
+  setupContent: { flexGrow: 1, justifyContent: "center", padding: 28 },
+  setupWordmark: { marginBottom: 24 },
+});

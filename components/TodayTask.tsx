@@ -21,9 +21,11 @@ export default function TodayTask({
   task,
   index,
   goalTitle,
+  projectTitle,
   onToggle,
   onOpenSlot,
   onOpenGoal,
+  onOpenProject,
 }: {
   task: Task;
   index: number;

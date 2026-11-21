@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import * as Linking from "expo-linking";
-import { supabase } from "./supabase";
+import { getSupabase } from "./supabase";
 
 const RECOVER_KEY = "limiqo.recovering";
 
@@ -54,6 +54,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const supabase = getSupabase();
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
   const [recovering, setRecovering] = useState(false);

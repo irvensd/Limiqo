@@ -4,7 +4,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Wordmark } from "@/components/Brand";
 import { colors, fonts } from "@/constants/theme";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { useStore } from "@/lib/store";
 
 const lines = [
@@ -36,7 +36,7 @@ export default function WelcomeScreen() {
     const next = name.trim();
     if (!next) return;
     dispatch({ type: "complete-onboarding", name: next });
-    supabase.auth.updateUser({ data: { name: next } });
+    getSupabase().auth.updateUser({ data: { name: next } });
     router.replace("/(tabs)/today");
   }
 

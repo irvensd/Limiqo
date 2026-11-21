@@ -10,7 +10,7 @@ import WeeklyReview from "@/components/WeeklyReview";
 import { Kicker, SectionLabel, Subtitle, Title } from "@/components/Type";
 import { colors, fonts } from "@/constants/theme";
 import { useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
 
@@ -37,7 +37,7 @@ export default function SettingsScreen() {
     setNeedName(false);
     setName(next);
     dispatch({ type: "set-name", name: next });
-    supabase.auth.updateUser({ data: { name: next } });
+    getSupabase().auth.updateUser({ data: { name: next } });
     say("Saved.");
   }
 
